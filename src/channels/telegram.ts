@@ -4,14 +4,30 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "bun";
 
-// Track voice mode per user
-const voiceModeUsers = new Map<string, boolean>();
+// Track voice mode and preferred voice per user
+const voiceModeUsers = new Map<string, { enabled: boolean; voice: string }>();
+
+// Available Kokoro voices
+const AVAILABLE_VOICES = [
+  { id: "af_bella", name: "Bella", gender: "female", accent: "American" },
+  { id: "af_sarah", name: "Sarah", gender: "female", accent: "American" },
+  { id: "af_nicole", name: "Nicole", gender: "female", accent: "American" },
+  { id: "af_sky", name: "Sky", gender: "female", accent: "American" },
+  { id: "am_adam", name: "Adam", gender: "male", accent: "American" },
+  { id: "am_michael", name: "Michael", gender: "male", accent: "American" },
+  { id: "bf_emma", name: "Emma", gender: "female", accent: "British" },
+  { id: "bf_isabella", name: "Isabella", gender: "female", accent: "British" },
+  { id: "bm_george", name: "George", gender: "male", accent: "British" },
+  { id: "bm_lewis", name: "Lewis", gender: "male", accent: "British" },
+];
+
+const DEFAULT_VOICE = "af_bella";
 
 export function createTelegramChannel(agent: any, token: string) {
   const bot = new Telegraf(token);
   const recovery = new CrashRecovery(agent.config?.memory?.path || "./data/velo.db");
   
-  // Handle voice messages
+  // Handle voice messages (transcription)
   bot.on("voice", async (ctx: Context) => {
     const voice = ctx.message?.voice;
     if (!voice) return;
@@ -144,14 +160,56 @@ export function createTelegramChannel(agent: any, token: string) {
     const sessionId = `telegram:${userId}`;
     agent.setSession(sessionId);
 
-    // Handle /voice command - toggle TTS mode
+    // Handle /voice command
     if (message === "/voice" || message.startsWith("/voice ")) {
-      const currentMode = voiceModeUsers.get(userId) || false;
-      const newMode = !currentMode;
-      voiceModeUsers.set(userId, newMode);
+      const args = message.replace("/voice", "").trim().toLowerCase();
       
-      if (newMode) {
-        await ctx.reply("🔊 Voice mode ENABLED. I'll respond with audio messages.");
+      // Get current user settings
+      let userSettings = voiceModeUsers.get(userId) || { enabled: false, voice: DEFAULT_VOICE };
+      
+      // /voice list - show available voices
+      if (args === "list" || args === "voices") {
+        const voiceList = AVAILABLE_VOICES.map(v => 
+          `• ${v.name} (${v.gender}, ${v.accent})${userSettings.voice === v.id ? " ✓" : ""}`
+        ).join("\n");
+        
+        await ctx.reply(
+          `🎤 Available Voices:\n\n${voiceList}\n\nUsage: /voice <name>\nExample: /voice Emma\n\nCurrent: ${getVoiceName(userSettings.voice)}`
+        );
+        return;
+      }
+      
+      // /voice <name> - set voice
+      if (args && args !== "on" && args !== "off") {
+        const voiceName = args.charAt(0).toUpperCase() + args.slice(1);
+        const voice = AVAILABLE_VOICES.find(v => v.name.toLowerCase() === args);
+        
+        if (voice) {
+          userSettings.voice = voice.id;
+          voiceModeUsers.set(userId, userSettings);
+          await ctx.reply(`🎤 Voice set to: ${voice.name} (${voice.gender}, ${voice.accent})`);
+          return;
+        } else {
+          await ctx.reply(`❌ Unknown voice: "${args}"\n\nUse /voice list to see available voices.`);
+          return;
+        }
+      }
+      
+      // /voice on/off or just /voice - toggle
+      if (args === "on") {
+        userSettings.enabled = true;
+      } else if (args === "off") {
+        userSettings.enabled = false;
+      } else {
+        userSettings.enabled = !userSettings.enabled;
+      }
+      
+      voiceModeUsers.set(userId, userSettings);
+      
+      if (userSettings.enabled) {
+        await ctx.reply(
+          `🔊 Voice mode ENABLED\n\nVoice: ${getVoiceName(userSettings.voice)}\n\nUse /voice list to change voice.`
+        );
       } else {
         await ctx.reply("🔇 Voice mode DISABLED. I'll respond with text messages.");
       }
@@ -193,8 +251,9 @@ export function createTelegramChannel(agent: any, token: string) {
 
     if (message === "/status") {
       const skills = Array.from((agent as any).skills?.keys?.() || []);
-      const voiceMode = voiceModeUsers.get(userId) ? "ON 🔊" : "OFF 🔇";
-      await ctx.reply(`🤖 Velo Bot Status\n\nPID: ${process.pid}\nModel: ${(agent as any).config?.agent?.model || "unknown"}\nTools: ${skills.length}\nSession: ${sessionId}\nVoice Mode: ${voiceMode}`);
+      const userSettings = voiceModeUsers.get(userId) || { enabled: false, voice: DEFAULT_VOICE };
+      const voiceStatus = userSettings.enabled ? `ON 🔊 (${getVoiceName(userSettings.voice)})` : "OFF 🔇";
+      await ctx.reply(`🤖 Velo Bot Status\n\nPID: ${process.pid}\nModel: ${(agent as any).config?.agent?.model || "unknown"}\nTools: ${skills.length}\nSession: ${sessionId}\nVoice Mode: ${voiceStatus}`);
       return;
     }
 
@@ -206,7 +265,9 @@ export function createTelegramChannel(agent: any, token: string) {
 /tools - List available tools
 /recover - Recover from crashed session
 /status - Check bot status
-/voice - Toggle voice mode (audio responses)
+/voice - Toggle voice mode
+/voice list - Show available voices
+/voice <name> - Set your preferred voice
 /help - Show this message
 
 Just chat with me normally for anything else!`);
@@ -250,7 +311,7 @@ Just chat with me normally for anything else!`);
         { command: "recover", description: "Recover from crashed session" },
         { command: "help", description: "Show help message" },
         { command: "status", description: "Check bot status" },
-        { command: "voice", description: "Toggle voice mode (audio responses)" },
+        { command: "voice", description: "Toggle voice mode or set voice" },
       ]).catch(err => console.error("[Telegram] Failed to set commands:", err.message));
       
       bot.launch({ dropPendingUpdates: true });
@@ -268,16 +329,25 @@ Just chat with me normally for anything else!`);
   };
 }
 
+// Helper function to get voice name from ID
+function getVoiceName(voiceId: string): string {
+  const voice = AVAILABLE_VOICES.find(v => v.id === voiceId);
+  return voice ? voice.name : "Bella";
+}
+
 // Helper function to send response (text or voice)
 async function sendResponse(ctx: Context, text: string, userId: string, agent: any) {
-  const voiceMode = voiceModeUsers.get(userId) || false;
+  const userSettings = voiceModeUsers.get(userId) || { enabled: false, voice: DEFAULT_VOICE };
   
-  if (voiceMode && text.length > 0) {
+  if (userSettings.enabled && text.length > 0) {
     // Send as voice message
     try {
       const ttsSkill = (agent as any).skills?.get("tts");
       if (ttsSkill) {
-        const ttsResult = await ttsSkill.execute({ text: text.slice(0, 500), voice: "lessac" });
+        const ttsResult = await ttsSkill.execute({ 
+          text: text.slice(0, 500), 
+          voice: userSettings.voice 
+        });
         
         // Extract audio file path from result
         const match = ttsResult.match(/AUDIO_FILE:(.+)$/m);
