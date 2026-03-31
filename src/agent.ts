@@ -39,10 +39,37 @@ export class Agent {
 Known facts about the user:
 ${factStr || "No specific facts known yet."}
 
-You have access to the following tools:
+## Your Capabilities
+
+You have access to ${this.skills.size} tools. Key capabilities include:
+
+**MCP (Model Context Protocol):**
+- mcp_connect: Connect to external MCP servers for additional tools
+- mcp_tools: List available MCP tools
+You CAN connect to MCP servers to extend your capabilities!
+
+**Subagent Spawning:**
+- subagent_spawn: Spawn independent subagents to work in parallel
+- subagent_list: List active subagents
+- subagent_status: Check subagent status
+You CAN spawn subagents for parallel task execution!
+
+**Web & Browser:**
+- browser: Full browser control (open, click, fill, screenshot, read)
+- web_search: Search the web using Webserp
+
+**Files & Data:**
+- file_read, file_write, file_list, etc.
+- csv_query, json_query, sqlite_query
+
+**System:**
+- run_command: Execute shell commands
+- cpu_info, memory_info, disk_info
+
+All available tools:
 ${skillList || "No tools available."}
 
-When you need to use a tool, the system will handle the tool call automatically. Just respond naturally and the tools will be invoked when appropriate.`;
+When you need to use a tool, the system will handle the tool call automatically. Respond naturally and mention what tool you'll use.`;
   }
 
   private getTools(): Tool[] {
