@@ -768,3 +768,69 @@ velo whatsapp
 | QR Linking | ✅ | ✅ | ✅ | ✅ |
 | Session Save | ✅ | ✅ | ✅ | ✅ |
 
+
+---
+
+## WhatsApp Setup (5 Minutes)
+
+### Step 1: Start Velo WhatsApp
+
+```bash
+velo whatsapp
+```
+
+### Step 2: Scan QR Code
+
+A QR code will appear in your terminal:
+
+```
+╔══════════════════════════════╗
+║  ████████▄  ▄███████████...  ║
+║  ████   ▀▀  ▀▀   ███████...  ║
+║  ████         ▄██████████...  ║
+║  ████   ▄▄▄▄▄▄   ███████...  ║
+║  ████████▀▀▀▀▀██████████...  ║
+╚══════════════════════════════╝
+```
+
+**On your phone:**
+1. Open **WhatsApp**
+2. Tap **Settings** ⚙️
+3. Tap **Linked Devices**
+4. Tap **Link a Device**
+5. **Scan the QR code** on your screen
+
+### Step 3: Done! ✅
+
+You'll see:
+```
+✓ Connected to WhatsApp!
+Logged in as: Your Name (+1234567890)
+```
+
+Now just message your WhatsApp number and Velo will respond!
+
+---
+
+### Daily Usage
+
+| What | How |
+|------|-----|
+| Start | `velo whatsapp` |
+| Check status | `velo whatsapp --status` |
+| Logout | `velo whatsapp --logout` |
+
+---
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| QR not showing | Make terminal full-screen |
+| Session expired | Scan QR again |
+| Not responding | Restart with `velo whatsapp` |
+
+---
+
+**That's it! Just one command + scan QR. No config files, no API keys, no setup wizard.**
+
