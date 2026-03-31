@@ -527,20 +527,34 @@ async function main() {
       console.log(`Starting web UI at http://localhost:3333`);
       console.log(`Config: ${configPath}\n`);
       
-      const dashboardPath = path.join(process.cwd(), "dashboard", "server.ts");
-      const dashboardDistPath = path.join(process.cwd(), "dashboard", "dist", "server.js");
+      // Look for dashboard in multiple locations
+      const possiblePaths = [
+        path.join(process.cwd(), "dashboard", "server.ts"),
+        path.join(os.homedir(), ".velo", "dashboard", "server.ts"),
+        "/usr/local/share/velo/dashboard/server.ts",
+      ];
       
-      // Check if dashboard exists
-      if (!fs.existsSync(dashboardPath) && !fs.existsSync(dashboardDistPath)) {
-        console.error("Dashboard not built. Run: cd dashboard && bun build server.ts --outdir dist");
+      let dashboardPath = null;
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          dashboardPath = p;
+          break;
+        }
+      }
+      
+      if (!dashboardPath) {
+        console.error("Dashboard not found. Tried:");
+        possiblePaths.forEach(p => console.error(`  ${p}`));
         process.exit(1);
       }
+      
+      console.log(`Dashboard: ${dashboardPath}`);
       
       // Spawn dashboard server
       const { spawn } = await import("bun");
       const dashboard = spawn({
         cmd: ["bun", "run", dashboardPath],
-        cwd: process.cwd(),
+        cwd: path.dirname(dashboardPath),
         env: {
           ...process.env,
           VELO_HOME: path.dirname(configPath),
