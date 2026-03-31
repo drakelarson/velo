@@ -202,3 +202,79 @@ When you need to use a tool, the system will handle the tool call automatically.
     this.memory.close();
   }
 }
+// ============================================
+// CRASH RECOVERY (Add after class definition)
+// ============================================
+
+export class CrashRecovery {
+  private db: any;
+  private dbPath: string;
+
+  constructor(dbPath: string) {
+    this.dbPath = dbPath.replace(".db", "_recovery.db");
+  }
+
+  init() {
+    const { Database } = require("bun:sqlite");
+    this.db = new Database(this.dbPath);
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS checkpoints (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp REAL NOT NULL,
+        session_id TEXT NOT NULL,
+        status TEXT DEFAULT 'active',
+        last_input TEXT,
+        pending_tools TEXT DEFAULT '[]',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  save(sessionId: string, input: string, pendingTools: any[] = []) {
+    if (!this.db) this.init();
+    this.db.run(
+      "INSERT INTO checkpoints (timestamp, session_id, last_input, pending_tools) VALUES (?, ?, ?, ?)",
+      Date.now(), sessionId, input, JSON.stringify(pendingTools)
+    );
+    // Keep only last 10 checkpoints per session
+    this.db.run(`
+      DELETE FROM checkpoints WHERE id NOT IN (
+        SELECT id FROM checkpoints WHERE session_id = ? ORDER BY timestamp DESC LIMIT 10
+      ) AND session_id = ?
+    `, sessionId, sessionId);
+  }
+
+  markCrashed(sessionId?: string) {
+    if (!this.db) this.init();
+    if (sessionId) {
+      this.db.run("UPDATE checkpoints SET status = 'crashed' WHERE session_id = ? AND status = 'active'", sessionId);
+    } else {
+      this.db.run("UPDATE checkpoints SET status = 'crashed' WHERE status = 'active'");
+    }
+  }
+
+  getCrashed(): any[] {
+    if (!this.db) this.init();
+    const rows = this.db.prepare("SELECT * FROM checkpoints WHERE status = 'crashed' ORDER BY timestamp DESC").all();
+    return rows;
+  }
+
+  markClean(sessionId?: string) {
+    if (!this.db) this.init();
+    if (sessionId) {
+      this.db.run("UPDATE checkpoints SET status = 'completed' WHERE session_id = ? AND status = 'active'", sessionId);
+    } else {
+      this.db.run("UPDATE checkpoints SET status = 'completed' WHERE status = 'active'");
+    }
+  }
+
+  needsRecovery(): boolean {
+    if (!this.db) this.init();
+    const row = this.db.prepare("SELECT COUNT(*) as count FROM checkpoints WHERE status = 'crashed'").get();
+    return row.count > 0;
+  }
+
+  close() {
+    if (this.db) this.db.close();
+  }
+}

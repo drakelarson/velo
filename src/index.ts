@@ -388,6 +388,34 @@ async function main() {
       break;
     }
 
+    case "status": {
+      console.log("═════════ VELO STATUS ═════════");
+      console.log(`PID: ${process.pid}`);
+      console.log(agent.getMemoryStatus());
+      agent.close();
+      break;
+    }
+
+    case "recover": {
+      const recovery = new (await import("./agent.ts")).CrashRecovery(config.memory.path);
+      const crashed = recovery.getCrashed();
+      if (crashed.length === 0) {
+        console.log("✓ No crashed sessions found - clean state.");
+      } else {
+        console.log("═════════ CRASH RECOVERY ═════════");
+        console.log(`Found ${crashed.length} crashed sessions:\n`);
+        for (const c of crashed) {
+          console.log(`Session: ${c.session_id}`);
+          console.log(`Last input: ${(c.last_input || "(none)").slice(0, 50)}`);
+          console.log(`Time: ${new Date(c.timestamp).toLocaleString()}`);
+          console.log("---");
+        }
+      }
+      recovery.close();
+      agent.close();
+      break;
+    }
+
     case "telegram": {
       const token = args[1];
       if (!token) {
