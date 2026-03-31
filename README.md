@@ -587,3 +587,47 @@ export default {
 velo models    # Show all 35 models with pricing
 velo usage      # Your actual usage with accurate costs
 ```
+
+## Voice Memo Transcription
+
+Velo transcribes voice messages using local Whisper models - **no API costs!**
+
+### Setup
+
+```bash
+# Whisper.cpp is auto-installed on first use
+# Models download automatically (tiny: 75MB, base: 142MB)
+```
+
+### Usage
+
+**Telegram:**
+Just send a voice message - Velo auto-transcribes and responds.
+
+**Chat:**
+```
+transcribe file="voice_memo.m4a"
+transcribe file="meeting.mp3" model="base"  # Better accuracy
+```
+
+### Models
+
+| Model | Size | Speed | Accuracy |
+|-------|------|-------|----------|
+| tiny | 75MB | ~2s | Good for short clips |
+| base | 142MB | ~3s | Better accuracy |
+| small | 466MB | ~5s | Best quality |
+
+### Supported Formats
+
+mp3, wav, m4a, ogg, flac, webm
+
+### How It Works
+
+1. User sends voice message (Telegram) or provides file path (chat)
+2. Velo downloads model if not present
+3. whisper.cpp transcribes locally (CPU, no GPU needed)
+4. Text returned to conversation
+
+**Privacy**: All processing happens locally - audio never leaves your machine.
+
