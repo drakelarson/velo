@@ -6,6 +6,12 @@ import type { Config } from "./types.ts";
 export function loadConfig(configPath: string): Config {
   const fullPath = path.resolve(configPath);
   
+  // Ensure directory exists
+  const dir = path.dirname(fullPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  
   // Load .env file next to config
   const envPath = fullPath.replace(/\.toml$/, ".env");
   if (fs.existsSync(envPath)) {
@@ -34,6 +40,7 @@ export function loadConfig(configPath: string): Config {
 }
 
 function createDefaultConfig(): string {
+  const veloHome = getVeloHome();
   return `# Velo Agent Configuration
 
 [agent]
@@ -61,7 +68,7 @@ base_url = "https://api.minimaxi.com/v1"
 
 [memory]
 type = "sqlite"
-path = "/root/.velo/data/velo.db"
+path = "${veloHome}/data/velo.db"
 max_context_messages = 50
 
 # Session Compaction - Use FREE local Ollama models to compress history
@@ -189,4 +196,18 @@ export function parseToml(content: string): Config {
   }
 
   return config as Config;
+}
+
+export function getVeloHome(): string {
+  const homeDir = os.homedir();
+  const veloDir = path.join(homeDir, ".velo");
+  if (!fs.existsSync(veloDir)) {
+    fs.mkdirSync(veloDir);
+  }
+  return veloDir;
+}
+
+export function getVel(): Config {
+  const configPath = path.join(os.homedir(), ".velo", "config.toml");
+  return loadConfig(configPath);
 }

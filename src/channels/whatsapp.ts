@@ -55,6 +55,11 @@ export class WhatsAppChannel {
     if (!fs.existsSync(distPath)) {
       console.log("[WhatsApp] Building bridge...");
       
+      // Ensure bridge directory exists
+      if (!fs.existsSync(bridgeDir)) {
+        fs.mkdirSync(bridgeDir, { recursive: true });
+      }
+      
       // Install dependencies
       const installResult = spawn({
         cmd: ["npm", "install"],

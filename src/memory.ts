@@ -1,13 +1,21 @@
 import { Database } from "bun:sqlite";
 import { getModelPricing, calculateCost, formatCost, type ModelPricing } from "./pricing.ts";
 import type { Message } from "./types.ts";
+import * as fs from "fs";
+import * as path from "path";
 
 export class Memory {
   private db: Database;
   private maxMessages: number;
 
-  constructor(path: string, maxMessages: number = 50) {
-    this.db = new Database(path);
+  constructor(dbPath: string, maxMessages: number = 50) {
+    // Ensure directory exists before opening database
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    this.db = new Database(dbPath);
     this.maxMessages = maxMessages;
     this.init();
   }

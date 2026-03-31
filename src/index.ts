@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { Agent } from "./agent.ts";
 import { Scheduler } from "./scheduler.ts";
 import { createWebhookChannel } from "./channels/webhook.ts";
@@ -691,7 +693,7 @@ function getConfigPath(args: string[]): string {
   if (idx !== -1 && args[idx + 1]) {
     return args[idx + 1];
   }
-  return "./velo.toml";
+  return path.join(os.homedir(), ".velo", "config.toml");
 }
 
 function getFlag(args: string[], flag: string): string | null {
