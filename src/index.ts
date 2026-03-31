@@ -417,10 +417,11 @@ async function main() {
     }
 
     case "telegram": {
-      const token = args[1];
+      const token = args[1] || process.env.TELEGRAM_TOKEN;
       if (!token) {
         console.error("Usage: velo telegram <bot-token>");
         console.error("Example: velo telegram 123456:ABC-DEF...");
+        console.error("Or set TELEGRAM_TOKEN in velo.env");
         process.exit(1);
       }
       
