@@ -651,6 +651,7 @@ Velo responds with voice messages using **Kokoro TTS** - natural, human-like voi
 /voice Emma         # Set voice to Emma (British female)
 /voice on           # Enable voice mode
 /voice off          # Disable voice mode
+/voice exit         - Same as /voice off (disable voice mode)
 /status             # Shows current voice mode & selected voice
 ```
 
