@@ -377,11 +377,72 @@ Spawn specialized agents that
 
 ## Self-Improvement Loop
 
-Velo can automatically improve itself by:
+Velo learns from experience and improves over time:
 
-- **Analyzing user feedback**: Learning from user ratings and comments.
-- **Updating skills**: Regularly updating built-in skills and plugins.
-- **Optimizing performance**: Fine-tuning the underlying model and infrastructure.
+- **Creates new skills** from repeated successful patterns
+- **Enhances existing skills** based on effectiveness
+- **Learns user preferences** with confidence scores
+- **Tracks skill effectiveness** and suggests improvements
+
+### How It Works
+
+1. **Record outcomes** — After each task, record success/failure
+2. **Extract patterns** — Identify reusable approaches from successes
+3. **Create skills** — Auto-generate skills after 3+ similar successes
+4. **Track effectiveness** — Score skills by success rate
+5. **Suggest improvements** — Flag low-effectiveness skills for review
+
+### CLI Commands
+
+```bash
+velo learn report              # Show learning progress
+velo learn patterns             # List learned skill patterns
+velo learn suggest              # Get improvement suggestions
+velo learn preference tone concise  # Learn a user preference
+```
+
+### In Chat
+
+The agent can learn during conversations:
+
+```
+User: I prefer concise responses, no filler
+Agent: Got it! I'll remember that.
+[Uses learn skill: learn preference:tone=concise]
+
+User: That worked perfectly!
+Agent: Great! I'll use this approach for similar tasks.
+[Records: outcome=success]
+```
+
+### Learned Skills
+
+Auto-created skills are saved to `skills/learned/`:
+
+```
+skills/learned/
+├── learned_research_summaries_abc123.ts
+├── learned_code_review_def456.ts
+└── learned_data_analysis_ghi789.ts
+```
+
+Each learned skill includes:
+- Trigger patterns (regex)
+- Typical approach used
+- Success patterns from previous executions
+- Effectiveness score
+
+### Comparison with Hermes
+
+| Feature | Hermes | Velo |
+|---------|--------|------|
+| Pattern learning | ✅ | ✅ |
+| Skill auto-creation | ✅ | ✅ |
+| User preference learning | ✅ | ✅ |
+| Effectiveness tracking | ✅ | ✅ |
+| Skill enhancement | ✅ | ✅ |
+| Learned skills as files | ❌ | ✅ |
+| CLI learning commands | ❌ | ✅ |
 
 ## Project Structure
 
