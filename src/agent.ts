@@ -73,6 +73,11 @@ You CAN connect to MCP servers to extend your capabilities!
 - subagent_status: Check subagent status
 You CAN spawn subagents for parallel task execution!
 
+**Multi-Agent Orchestration:**
+- orchestrate: Orchestrate multiple specialized agents (Coordinator, Researcher, Writer, Coder, Reviewer, Analyst)
+- orchestrate_auto: Let AI choose the best workflow automatically
+You CAN orchestrate complex tasks with multiple agents!
+
 **Web & Browser:**
 - browser: Full browser control (open, click, fill, screenshot, read)
 - web_search: Search the web using Webserp
