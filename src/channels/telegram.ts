@@ -1,18 +1,11 @@
 import { Telegraf, Context } from "telegraf";
-import { Agent, CrashRecovery } from "../agent.ts";
+import { CrashRecovery } from "../recovery.ts";
 
-export function createTelegramChannel(agent: Agent, token: string) {
+export function createTelegramChannel(agent: any, token: string) {
   const bot = new Telegraf(token);
-  const recovery = new CrashRecovery((agent as any).config?.memory?.path || "./data/velo.db");
+  const recovery = new CrashRecovery(agent.config?.memory?.path || "./data/velo.db");
   
-  // Mark clean on shutdown
-  const cleanup = () => {
-    recovery.markClean();
-    recovery.close();
-  };
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
-  process.on("beforeExit", cleanup);
+  // No premature cleanup - handle cleanup only on explicit shutdown
 
   bot.on("text", async (ctx: Context) => {
     const message = ctx.message?.text;
