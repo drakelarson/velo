@@ -1,0 +1,12 @@
+import { execSync } from "child_process";
+import type { Skill } from "../../src/types.ts";
+export default {
+  name: "git_pull",
+  description: "Pull latest changes",
+  async execute(args: Record<string, unknown>) {
+    const path = args.path || args.args || ".";
+    try {
+      return execSync(`git -C "${path}" pull`, { encoding: "utf-8" });
+    } catch (err: any) { return `Failed: ${err.message}`; }
+  },
+} as Skill;
