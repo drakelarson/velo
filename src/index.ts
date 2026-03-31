@@ -6,6 +6,7 @@ import { createWebhookChannel } from "./channels/webhook.ts";
 import { createTelegramChannel } from "./channels/telegram.ts";
 import { loadConfig } from "./config.ts";
 import { loadSkills } from "./skills.ts";
+import { acquireLock, releaseLock } from "./lock.ts";
 import type { Config } from "./types.ts";
 
 const VERSION = "0.1.0";
@@ -230,9 +231,16 @@ async function main() {
 
   switch (command) {
     case "start": {
+      // Acquire lock for long-running process
+      if (!acquireLock()) {
+        console.error("✖ Another Velo instance is already running");
+        console.error("  Use 'pkill -f velo' to stop it first");
+        process.exit(1);
+      }
       console.log(`\n  ▓▓▓  Velo v${VERSION}  ▓▓▓\n`);
       console.log(`Model: ${config.agent.model}`);
       console.log(`Memory: ${config.memory.path}\n`);
+      console.log(`PID: ${process.pid}\n`);
 
       const servers: { stop?: () => void }[] = [];
 
@@ -265,6 +273,7 @@ async function main() {
         servers.forEach((s) => s.stop?.());
         scheduler?.stop();
         agent.close();
+        releaseLock();
         process.exit(0);
       });
 
@@ -387,6 +396,13 @@ async function main() {
         process.exit(1);
       }
       
+      // Acquire lock for long-running process
+      if (!acquireLock()) {
+        console.error("✖ Another Velo instance is already running");
+        console.error("  Use 'pkill -f velo' to stop it first");
+        process.exit(1);
+      }
+      
       console.log(`\n  ▓▓▓  Velo Telegram Bot  ▓▓▓\n`);
       console.log(`Model: ${config.agent.model}\n`);
       
@@ -398,6 +414,7 @@ async function main() {
         console.log("\nShutting down...");
         server.stop?.();
         agent.close();
+        releaseLock();
         process.exit(0);
       });
       break;
