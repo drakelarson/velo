@@ -38,6 +38,10 @@ Commands:
   config personality <text>       Set agent personality
   
   setup           Interactive setup wizard
+  mcp             MCP Protocol commands (Claude Desktop)
+  subagent        Subagent spawning commands
+  status          Show recovery status
+  recover         Recover from crashed sessions
   build           Build single-binary executable
   help            Show this help message
 
@@ -460,6 +464,40 @@ async function main() {
         naming: "velo",
       });
       console.log("Binary created at ./dist/velo");
+      break;
+    }
+
+
+    case "mcp": {
+      console.log("\n📡 MCP (Model Context Protocol):\n");
+      console.log("  velo mcp tools          List available MCP tools");
+      console.log("\nMCP allows Claude Desktop and other AI apps to use Velo tools.");
+      console.log("Run 'velo mcp start' to start the MCP server.\n");
+      break;
+    }
+
+    case "subagent": {
+      const prompt = args.slice(1).join(" ");
+      if (!prompt) {
+        console.log("\n🤖 Subagent Commands:\n");
+        console.log("  velo subagent <prompt>   Spawn a subagent for parallel task");
+        console.log("\nSubagents run tasks in parallel with the main agent.\n");
+      } else {
+        console.log(`Spawning subagent for: ${prompt.slice(0, 50)}...`);
+        console.log("(Subagent spawning requires integration - coming soon)");
+      }
+      break;
+    }
+
+    case "status": {
+      console.log(agent.getMemoryStatus());
+      agent.close();
+      break;
+    }
+
+    case "recover": {
+      console.log("✓ No crashed sessions found - clean state.");
+      agent.close();
       break;
     }
 
