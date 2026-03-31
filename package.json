@@ -1,0 +1,25 @@
+{
+  "name": "velo",
+  "version": "0.1.0",
+  "description": "Fast, persistent AI agent framework - OpenClaw/Nanobot alternative",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "velo": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile dist/velo",
+    "dev": "bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "jsonrepair": "^3.13.3",
+    "nodemailer": "^6.9.0",
+    "openai": "^6.33.0",
+    "telegraf": "^4.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

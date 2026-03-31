@@ -1,0 +1,27 @@
+[agent]
+name = "Velo"
+personality = "Fast, helpful AI assistant"
+model = "nvidia:stepfun-ai/step-3.5-flash"
+
+[providers.nvidia]
+api_key_env = "NVIDIA_API_KEY"
+base_url = "https://integrate.api.nvidia.com/v1"
+
+[memory]
+type = "sqlite"
+path = "./data/velo.db"
+max_context_messages = 50
+
+[channels.webhook]
+enabled = true
+port = 3000
+
+[channels.telegram]
+enabled = false
+
+[scheduler]
+enabled = false
+
+[skills]
+directory = "./skills"
+auto_load = true
