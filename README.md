@@ -221,3 +221,75 @@ velo/
 ## License
 
 MIT
+## Built-in Skills (83 Tools)
+
+Velo comes with 83 pre-built skills organized into 10 categories:
+
+### Web (10 tools)
+- `web_search` - Multi-engine search (Google, DuckDuckGo, Brave)
+- `web_extract` - Extract content from URLs
+- `http_request` - Make HTTP requests
+- `url_shorten` - Shorten URLs
+- `ip_lookup` - IP geolocation
+- `dns_lookup` - DNS queries
+- `rss_read` - Parse RSS feeds
+- `sitemap_parse` - Parse sitemaps
+- `robots_txt` - Read robots.txt
+- `webhook_create` - Create webhook endpoints
+
+### Files (10 tools)
+- `file_read`, `file_write`, `file_append`, `file_list`, `file_delete`
+- `file_exists`, `file_stat`, `dir_create`, `file_watch`, `grep`
+
+### System (12 tools)
+- `run_command`, `process_list`, `process_kill`, `system_info`
+- `cpu_info`, `mem_info`, `uptime`, `hostname`, `whoami`, `date`, `sleep`
+
+### Data (10 tools)
+- `json_parse`, `csv_parse`, `csv_query`, `toml_parse`, `xml_parse`
+- `diff_json`, `validate_json`, `base64_encode`, `base64_decode`
+- `hash_text`, `uuid_generate`
+
+### Productivity (12 tools)
+- `weather_get`, `time_now`, `calculator`, `unit_convert`
+- `timer`, `stopwatch`, `countdown`, `world_clock`
+- `random_number`, `password_gen`, `quote`, `joke`
+
+### Social (8 tools)
+- `github_repo_info`, `github_search`, `github_user_info`
+- `hackernews_top`, `reddit_hot`, `devto_articles`
+- `product_hunt`, `wikipedia`
+
+### Automation (8 tools)
+- `schedule_task`, `schedule_list`, `reminder_set`, `reminder_add`, `reminder_list`
+- `todo_add`, `todo_list`, `note_save`, `note_list`, `habit_track`
+
+### Dev (10 tools)
+- `git_status`, `git_log`, `git_branch`, `git_pull`
+- `npm_install`, `pip_install`, `pip_list`
+- `docker_ps`, `docker_images`, `docker_logs`, `test_run`
+
+### Media (8 tools)
+- `image_info`, `image_resize`, `image_convert`
+- `video_info`, `video_thumbnail`
+- `audio_info`, `audio_convert`, `pdf_to_text`
+
+### AI (5 tools)
+- `text_summarize`, `text_translate`, `code_explain`
+- `sentiment_analyze`, `json_extract`
+
+### Creating Custom Skills
+
+Add a `.ts` file to `skills/`:
+
+```typescript
+import type { Skill } from "../src/types.ts";
+
+export default {
+  name: "my_skill",
+  description: "What it does",
+  async execute(args: Record<string, unknown>) {
+    return "Result";
+  },
+} as Skill;
+```
