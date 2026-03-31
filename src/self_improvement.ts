@@ -164,6 +164,77 @@ export class SelfImprovement {
     this.analyzeForPattern(sessionId, input, skillsUsed, toolsCalled, resultSummary, success);
   }
 
+  // Simplified outcome recording (for skill usage)
+  recordSimpleOutcome(result: "success" | "fail", score: number = 1.0): void {
+    const id = `outcome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const success = result === "success" ? 1 : 0;
+    
+    this.db.run(`
+      INSERT INTO task_outcomes 
+      (id, session_id, input, skills_used, tools_called, result_summary, success, feedback, duration_ms, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      id, "skill_triggered", "learn skill", "[]", "[]", 
+      `Recorded via learn skill: ${result}`, success, null, 0, Date.now()
+    ]);
+  }
+
+  // Record a user preference
+  async recordPreference(key: string, value: string): Promise<void> {
+    const existing = this.db.prepare("SELECT * FROM user_preferences WHERE key = ?").get(key) as any;
+    
+    if (existing) {
+      // Reinforce existing preference
+      const newConfidence = Math.min(1.0, existing.confidence + 0.1);
+      const learnedFrom = JSON.parse(existing.learned_from || "[]");
+      learnedFrom.push("skill_triggered");
+      
+      this.db.run(`
+        UPDATE user_preferences 
+        SET value = ?, confidence = ?, learned_from = ?, last_reinforced = ?
+        WHERE key = ?
+      `, [value, newConfidence, JSON.stringify(learnedFrom), Date.now(), key]);
+    } else {
+      // New preference
+      this.db.run(`
+        INSERT INTO user_preferences (key, value, confidence, learned_from, last_reinforced)
+        VALUES (?, ?, ?, ?, ?)
+      `, [key, value, 0.6, JSON.stringify(["skill_triggered"]), Date.now()]);
+    }
+  }
+
+  // Record a pattern for potential skill creation
+  async recordPattern(name: string, category: string, initialEffectiveness: number = 0.8): Promise<void> {
+    const id = `pattern_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    
+    // Check if pattern already exists
+    const existing = this.db.prepare("SELECT * FROM skill_patterns WHERE name = ?").get(name) as any;
+    
+    if (existing) {
+      // Reinforce existing pattern
+      const newSuccessCount = existing.success_count + 1;
+      const newEffectiveness = Math.min(1.0, existing.effectiveness_score + 0.05);
+      
+      this.db.run(`
+        UPDATE skill_patterns 
+        SET success_count = ?, effectiveness_score = ?, last_used = ?
+        WHERE name = ?
+      `, [newSuccessCount, newEffectiveness, Date.now(), name]);
+    } else {
+      // Create new pattern
+      this.db.run(`
+        INSERT INTO skill_patterns 
+        (id, name, description, trigger_patterns, template, success_count, failure_count, 
+         last_used, created_from_session, created_at, enhanced_at, effectiveness_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        id, name, `Learned pattern: ${category}`, 
+        JSON.stringify([name]), JSON.stringify({ category }), 
+        1, 0, Date.now(), "skill_triggered", Date.now(), Date.now(), initialEffectiveness
+      ]);
+    }
+  }
+
   // Update skill usage statistics
   private updateSkillUsage(skillName: string, success: boolean, durationMs: number): void {
     const existing = this.db.prepare("SELECT * FROM skill_usage WHERE skill_name = ?").get(skillName) as any;
@@ -488,27 +559,37 @@ Input received: \${input.slice(0, 200)}
   getImprovementSuggestions(): string[] {
     const suggestions: string[] = [];
     
-    // Check for low-effectiveness skills
-    const lowEffectiveness = this.db.prepare(`
-      SELECT * FROM skill_patterns WHERE effectiveness_score < 0.5 AND success_count + failure_count > 5
-    `).all() as SkillPattern[];
+    // Find low-effectiveness skills
+    const lowEffSkills = this.db.prepare(`
+      SELECT * FROM skill_patterns 
+      WHERE effectiveness_score < ? AND success_count >= 3
+      ORDER BY effectiveness_score ASC
+      LIMIT 5
+    `).all(this.minEffectivenessForEnhancement) as SkillPattern[];
     
-    for (const pattern of lowEffectiveness) {
-      suggestions.push(`Consider reviewing or deprecating skill "${pattern.name}" (${Math.round(pattern.effectiveness_score * 100)}% effectiveness)`);
+    for (const skill of lowEffSkills) {
+      suggestions.push(`Consider reviewing/enhancing: ${skill.name} (${(skill.effectiveness_score * 100).toFixed(0)}% effectiveness)`);
     }
-
-    // Check for highly-used skills that could be enhanced
-    const highUse = this.db.prepare(`
-      SELECT * FROM skill_usage WHERE use_count > 10 ORDER BY use_count DESC LIMIT 5
-    `).all() as any[];
     
-    for (const skill of highUse) {
-      if (skill.success_count / skill.use_count > 0.8) {
-        suggestions.push(`Skill "${skill.skill_name}" is highly reliable (${skill.use_count} uses) - consider enhancing`);
-      }
+    // Find unused skills
+    const unusedSkills = this.db.prepare(`
+      SELECT * FROM skill_patterns 
+      WHERE last_used < ?
+      ORDER BY last_used ASC
+      LIMIT 5
+    `).all(Date.now() - 7 * 24 * 60 * 60 * 1000) as SkillPattern[]; // 7 days
+    
+    for (const skill of unusedSkills) {
+      const daysSinceUse = Math.round((Date.now() - (skill.last_used || 0)) / (24 * 60 * 60 * 1000));
+      suggestions.push(`Unused skill: ${skill.name} (last used ${daysSinceUse} days ago)`);
     }
-
+    
     return suggestions;
+  }
+
+  // Get learned patterns
+  async getPatterns(): Promise<SkillPattern[]> {
+    return this.db.prepare("SELECT * FROM skill_patterns ORDER BY effectiveness_score DESC").all() as SkillPattern[];
   }
 
   // Generate improvement report
