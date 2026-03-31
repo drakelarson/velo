@@ -834,3 +834,46 @@ Now just message your WhatsApp number and Velo will respond!
 
 **That's it! Just one command + scan QR. No config files, no API keys, no setup wizard.**
 
+
+## Web Dashboard
+
+Velo includes a web UI for easy setup and monitoring.
+
+### Quick Start
+
+```bash
+velo dashboard
+# Opens at http://localhost:3333
+```
+
+### Features
+
+| Page | Description |
+|------|-------------|
+| **Overview** | Agent status, stats, quick actions |
+| **Channels** | Connect Telegram, WhatsApp, Webhook |
+| **Configuration** | Set model, personality, API keys |
+| **Sessions** | View all conversation sessions |
+| **Logs** | Real-time activity logs |
+
+### WhatsApp Setup via Dashboard
+
+1. Run `velo dashboard`
+2. Go to **Channels** → Click **Connect** on WhatsApp
+3. Scan the QR code with WhatsApp app
+4. Done! ✅
+
+### Configuration via Dashboard
+
+- Set agent name and personality
+- Choose AI model and provider
+- Add API keys (stored securely)
+- All changes saved to `~/.velo/config.toml`
+
+### White Theme
+
+The dashboard uses a clean, minimal white theme:
+- Black text on white background
+- Simple, readable typography
+- No clutter or distracting colors
+

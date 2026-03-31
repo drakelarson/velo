@@ -521,43 +521,65 @@ async function main() {
       break;
     }
 
-    case "whatsapp": {
-      const waCmd = args[1];
+    case "dashboard":
+    case "ui": {
+      console.log(`\n  ▓▓▓  Velo Dashboard  ▓▓▓\n`);
+      console.log(`Starting web UI at http://localhost:3333`);
+      console.log(`Config: ${configPath}\n`);
       
-      if (waCmd === "login") {
-        console.log("\n  ▓▓▓  Velo WhatsApp Login  ▓▓▓\n");
-        console.log("This will start the WhatsApp bridge and display a QR code.");
-        console.log("Scan it with WhatsApp (Settings > Linked Devices > Link a Device)\n");
-        const { WhatsAppChannel } = await import("./channels/whatsapp.ts");
-        const wa = new WhatsAppChannel(agent);
-        await wa.login();
-        agent.close();
-        return;
-      }
+      const dashboardPath = path.join(process.cwd(), "dashboard", "server.ts");
+      const dashboardDistPath = path.join(process.cwd(), "dashboard", "dist", "server.js");
       
-      if (!acquireChannelLock("whatsapp")) {
-        console.error("✖ WhatsApp bot is already running");
-        console.error("  Use 'pkill -f \"velo.*whatsapp\"' to stop it");
+      // Check if dashboard exists
+      if (!fs.existsSync(dashboardPath) && !fs.existsSync(dashboardDistPath)) {
+        console.error("Dashboard not built. Run: cd dashboard && bun build server.ts --outdir dist");
         process.exit(1);
       }
       
-      console.log(`\n  ▓▓▓  Velo WhatsApp Bot  ▓▓▓\n`);
-      console.log(`Model: ${config.agent.model}\n`);
-      console.log(`PID: ${process.pid}\n`);
-      console.log(`Use "velo whatsapp login" first if not authenticated\n`);
-      
-      const { WhatsAppChannel } = await import("./channels/whatsapp.ts");
-      const wa = new WhatsAppChannel(agent);
-      await wa.start();
-      
-      // Handle shutdown
-      process.on("SIGINT", async () => {
-        console.log("\nShutting down...");
-        await wa.stop();
-        agent.close();
-        releaseChannelLock("whatsapp");
-        process.exit(0);
+      // Spawn dashboard server
+      const { spawn } = await import("bun");
+      const dashboard = spawn({
+        cmd: ["bun", "run", dashboardPath],
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          VELO_HOME: path.dirname(configPath),
+          DASHBOARD_PORT: args[1] || "3333",
+        },
+        stdout: "inherit",
+        stderr: "inherit",
       });
+      
+      await dashboard.exited;
+      break;
+    }
+
+    case "whatsapp": {
+      const subCmd = args[1];
+      
+      if (subCmd === "login" || !subCmd) {
+        console.log(`\n  ▓▓▓  Velo WhatsApp Login  ▓▓▓\n`);
+        console.log(`This will start the WhatsApp bridge and display a QR code.`);
+        console.log(`Scan it with WhatsApp (Settings > Linked Devices > Link a Device)\n`);
+        
+        const { WhatsAppChannel } = await import("./channels/whatsapp.ts");
+        const channel = new WhatsAppChannel(agent, { enabled: true });
+        await channel.login();
+        
+        // Keep running
+        process.on("SIGINT", () => {
+          console.log("\nShutting down WhatsApp bridge...");
+          channel.disconnect();
+          agent.close();
+          process.exit(0);
+        });
+      } else if (subCmd === "status") {
+        console.log("WhatsApp Status: Check ~/.velo/data/whatsapp-auth/ for session files");
+      } else {
+        console.log("\nWhatsApp Commands:");
+        console.log("  velo whatsapp login  - Start QR login");
+        console.log("  velo whatsapp status - Check connection status");
+      }
       break;
     }
 
