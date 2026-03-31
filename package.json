@@ -13,11 +13,13 @@
     "dev": "bun run --watch src/index.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "hono": "^4.6.0",
     "jsonrepair": "^3.13.3",
     "nodemailer": "^6.9.0",
     "openai": "^6.33.0",
-    "telegraf": "^4.16.0"
+    "telegraf": "^4.16.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0"
