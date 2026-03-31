@@ -877,3 +877,110 @@ The dashboard uses a clean, minimal white theme:
 - Simple, readable typography
 - No clutter or distracting colors
 
+
+## Standalone Deployment
+
+Velo runs on **any** Linux, macOS, or Windows machine. No dependencies on Zo or other platforms.
+
+### Install (Any Machine)
+
+```bash
+# Download binary
+curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/install.sh | bash
+
+# Or build from source
+git clone https://github.com/drakelarson/velo.git
+cd velo
+bun run build
+sudo cp dist/velo /usr/local/bin/
+```
+
+### Dashboard Access
+
+```bash
+# Start dashboard (port 3333)
+velo dashboard
+
+# Access from browser
+http://localhost:3333
+
+# For remote access, use your server's IP
+http://your-server-ip:3333
+```
+
+### Cloud Deployment
+
+Deploy to any VPS or cloud:
+
+```bash
+# Example: DigitalOcean, Linode, AWS EC2, etc.
+ssh user@your-server
+
+# Install
+curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/install.sh | bash
+
+# Set API key
+echo "NVIDIA_API_KEY=your-key" >> ~/.velo/velo.env
+
+# Start with WhatsApp
+velo whatsapp login
+
+# Dashboard accessible at:
+# http://your-server-ip:3333
+```
+
+### Systemd Service (Linux)
+
+```bash
+# Create systemd service for 24/7 operation
+sudo cat > /etc/systemd/system/velo.service << 'UNIT'
+[Unit]
+Description=Velo AI Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/.velo
+ExecStart=/usr/local/bin/velo start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+sudo systemctl enable velo
+sudo systemctl start velo
+```
+
+### Docker
+
+```bash
+# Coming soon - Docker image
+docker run -d \
+  -p 3333:3333 \
+  -p 3000:3000 \
+  -v ~/.velo:/root/.velo \
+  drakelarson/velo:latest
+```
+
+---
+
+## Project Status
+
+| Feature | Status |
+|---------|--------|
+| Core Agent | ✅ Complete |
+| Telegram | ✅ Complete |
+| WhatsApp | ✅ Complete |
+| Web Dashboard | ✅ Complete |
+| Voice TTS/STT | ✅ Complete |
+| MCP Integration | ✅ Complete |
+| Session Compaction | ✅ Complete |
+| Plugin System | ✅ Complete |
+| Self-Improvement | ✅ Complete |
+| Multi-Agent Orchestration | ✅ Complete |
+| Docker Image | 🚧 In Progress |
+| Windows Support | 🚧 In Progress |
+
