@@ -4,12 +4,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "bun";
 
+// Track voice mode per user
+const voiceModeUsers = new Map<string, boolean>();
+
 export function createTelegramChannel(agent: any, token: string) {
   const bot = new Telegraf(token);
   const recovery = new CrashRecovery(agent.config?.memory?.path || "./data/velo.db");
   
-  // No premature cleanup - handle cleanup only on explicit shutdown
-
   // Handle voice messages
   bot.on("voice", async (ctx: Context) => {
     const voice = ctx.message?.voice;
@@ -23,11 +24,9 @@ export function createTelegramChannel(agent: any, token: string) {
     await ctx.sendChatAction("typing");
 
     try {
-      // Get file info
       const fileInfo = await ctx.telegram.getFile(voice.file_id);
       const fileUrl = await ctx.telegram.getFileLink(fileInfo);
 
-      // Download voice file (OGG format)
       const tempDir = path.join(process.cwd(), "temp");
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
@@ -36,12 +35,10 @@ export function createTelegramChannel(agent: any, token: string) {
       const oggPath = path.join(tempDir, `${voice.file_id}.ogg`);
       const wavPath = path.join(tempDir, `${voice.file_id}.wav`);
 
-      // Download file
       const response = await fetch(fileUrl.toString());
       const buffer = await response.arrayBuffer();
       fs.writeFileSync(oggPath, Buffer.from(buffer));
 
-      // Convert OGG to WAV using ffmpeg
       const ffmpegResult = spawn({
         cmd: ["ffmpeg", "-y", "-i", oggPath, "-ar", "16000", "-ac", "1", wavPath],
         stdout: "pipe",
@@ -53,7 +50,6 @@ export function createTelegramChannel(agent: any, token: string) {
         throw new Error("Failed to convert audio format");
       }
 
-      // Transcribe using the transcribe skill
       const transcribeSkill = (agent as any).skills?.get("transcribe");
       if (!transcribeSkill) {
         await ctx.reply("❌ Transcription skill not available.");
@@ -66,28 +62,17 @@ export function createTelegramChannel(agent: any, token: string) {
         model: "tiny" 
       });
 
-      // Clean up temp files
       fs.unlinkSync(oggPath);
       fs.unlinkSync(wavPath);
 
-      // Send transcription
       await ctx.reply(transcription);
 
-      // Now process the transcribed text with the agent
       const transcribedText = transcription.replace(/^[📝\s]*TRANSCRIPTION:?\s*/i, "").trim();
       if (transcribedText && transcribedText.length > 0) {
         recovery.save(sessionId, `[Voice] ${transcribedText}`);
         
         const response = await agent.process(transcribedText);
-        
-        if (response.length > 4000) {
-          const chunks = response.match(/.{1,4000}/g) || [];
-          for (const chunk of chunks) {
-            await ctx.reply(chunk);
-          }
-        } else {
-          await ctx.reply(response);
-        }
+        await sendResponse(ctx, response, userId, agent);
       }
 
     } catch (err: any) {
@@ -96,7 +81,7 @@ export function createTelegramChannel(agent: any, token: string) {
     }
   });
 
-  // Handle audio files (same as voice but different format)
+  // Handle audio files
   bot.on("audio", async (ctx: Context) => {
     const audio = ctx.message?.audio;
     if (!audio) return;
@@ -119,12 +104,10 @@ export function createTelegramChannel(agent: any, token: string) {
 
       const audioPath = path.join(tempDir, audio.file_name || `${audio.file_id}.mp3`);
 
-      // Download
       const response = await fetch(fileUrl.toString());
       const buffer = await response.arrayBuffer();
       fs.writeFileSync(audioPath, Buffer.from(buffer));
 
-      // Transcribe
       const transcribeSkill = (agent as any).skills?.get("transcribe");
       if (!transcribeSkill) {
         await ctx.reply("❌ Transcription skill not available.");
@@ -136,25 +119,15 @@ export function createTelegramChannel(agent: any, token: string) {
         model: "tiny" 
       });
 
-      // Clean up
       fs.unlinkSync(audioPath);
 
       await ctx.reply(transcription);
 
-      // Process with agent
       const transcribedText = transcription.replace(/^[📝\s]*TRANSCRIPTION:?\s*/i, "").trim();
       if (transcribedText && transcribedText.length > 0) {
         recovery.save(sessionId, `[Audio] ${transcribedText}`);
         const response = await agent.process(transcribedText);
-        
-        if (response.length > 4000) {
-          const chunks = response.match(/.{1,4000}/g) || [];
-          for (const chunk of chunks) {
-            await ctx.reply(chunk);
-          }
-        } else {
-          await ctx.reply(response);
-        }
+        await sendResponse(ctx, response, userId, agent);
       }
 
     } catch (err: any) {
@@ -167,10 +140,23 @@ export function createTelegramChannel(agent: any, token: string) {
     const message = ctx.message?.text;
     if (!message) return;
 
-    // Use Telegram user ID as session
     const userId = ctx.from?.id?.toString() || "unknown";
     const sessionId = `telegram:${userId}`;
     agent.setSession(sessionId);
+
+    // Handle /voice command - toggle TTS mode
+    if (message === "/voice" || message.startsWith("/voice ")) {
+      const currentMode = voiceModeUsers.get(userId) || false;
+      const newMode = !currentMode;
+      voiceModeUsers.set(userId, newMode);
+      
+      if (newMode) {
+        await ctx.reply("🔊 Voice mode ENABLED. I'll respond with audio messages.");
+      } else {
+        await ctx.reply("🔇 Voice mode DISABLED. I'll respond with text messages.");
+      }
+      return;
+    }
 
     // Handle /memory command
     if (message === "/memory") {
@@ -178,14 +164,12 @@ export function createTelegramChannel(agent: any, token: string) {
       return;
     }
 
-    // Handle /clear command
     if (message === "/clear") {
       agent.clearSession(sessionId);
       await ctx.reply("✓ Conversation history cleared.");
       return;
     }
 
-    // Handle /recover command
     if (message === "/recover") {
       const crashed = recovery.getCrashed();
       if (crashed.length === 0) {
@@ -196,27 +180,24 @@ export function createTelegramChannel(agent: any, token: string) {
       return;
     }
 
-    // Handle /tools command
     if (message === "/tools") {
       const skills = Array.from((agent as any).skills?.keys?.() || []);
       await ctx.reply(`I have ${skills.length} tools available:\n${skills.slice(0, 20).join(", ")}${skills.length > 20 ? "..." : ""}`);
       return;
     }
 
-    // Handle /usage command
     if (message === "/usage") {
       await ctx.reply(agent.getUsageStatus(sessionId));
       return;
     }
 
-    // Handle /status command
     if (message === "/status") {
       const skills = Array.from((agent as any).skills?.keys?.() || []);
-      await ctx.reply(`🤖 Velo Bot Status\n\nPID: ${process.pid}\nModel: ${(agent as any).config?.agent?.model || "unknown"}\nTools: ${skills.length}\nSession: ${sessionId}`);
+      const voiceMode = voiceModeUsers.get(userId) ? "ON 🔊" : "OFF 🔇";
+      await ctx.reply(`🤖 Velo Bot Status\n\nPID: ${process.pid}\nModel: ${(agent as any).config?.agent?.model || "unknown"}\nTools: ${skills.length}\nSession: ${sessionId}\nVoice Mode: ${voiceMode}`);
       return;
     }
 
-    // Handle /help command
     if (message === "/help") {
       await ctx.reply(`🤖 Velo Bot Commands
 
@@ -225,16 +206,14 @@ export function createTelegramChannel(agent: any, token: string) {
 /tools - List available tools
 /recover - Recover from crashed session
 /status - Check bot status
+/voice - Toggle voice mode (audio responses)
 /help - Show this message
 
 Just chat with me normally for anything else!`);
       return;
     }
 
-    // Save checkpoint before processing (for crash recovery)
     recovery.save(sessionId, message);
-
-    // Show typing indicator
     await ctx.sendChatAction("typing");
 
     try {
@@ -242,22 +221,12 @@ Just chat with me normally for anything else!`);
       const response = await agent.process(message);
       console.log(`[Telegram] Response generated (${response.length} chars)`);
       
-      // Mark clean after successful processing
       recovery.markClean(sessionId);
+      await sendResponse(ctx, response, userId, agent);
       
-      // Telegram has 4096 char limit
-      if (response.length > 4000) {
-        const chunks = response.match(/.{1,4000}/g) || [];
-        for (const chunk of chunks) {
-          await ctx.reply(chunk);
-        }
-      } else {
-        await ctx.reply(response);
-      }
     } catch (err: any) {
       console.error("[Telegram] Error:", err?.message || err);
       console.error(err?.stack);
-      // Mark as crashed on error
       recovery.markCrashed(sessionId);
       try {
         await ctx.reply("Sorry, I encountered an error processing your request. Use /recover to see crash details.");
@@ -265,7 +234,6 @@ Just chat with me normally for anything else!`);
     }
   });
 
-  // Handle all errors
   bot.catch((err: any) => {
     console.error("[Telegram] Bot error:", err?.message || err);
   });
@@ -274,7 +242,6 @@ Just chat with me normally for anything else!`);
     start: () => {
       console.log("[Telegram] Bot starting with long polling...");
       
-      // Register commands for autocomplete popup
       bot.telegram.setMyCommands([
         { command: "memory", description: "View agent memory (facts & sessions)" },
         { command: "clear", description: "Clear conversation history" },
@@ -283,17 +250,14 @@ Just chat with me normally for anything else!`);
         { command: "recover", description: "Recover from crashed session" },
         { command: "help", description: "Show help message" },
         { command: "status", description: "Check bot status" },
+        { command: "voice", description: "Toggle voice mode (audio responses)" },
       ]).catch(err => console.error("[Telegram] Failed to set commands:", err.message));
       
-      // Enable graceful stop
-      bot.launch({
-        dropPendingUpdates: true,
-      });
+      bot.launch({ dropPendingUpdates: true });
       
-      // Log when bot is ready
       bot.telegram.getMe().then((botInfo) => {
         console.log(`[Telegram] Connected as @${botInfo.username}`);
-        console.log("[Telegram] Commands registered: /memory, /clear, /tools, /recover, /help, /status");
+        console.log("[Telegram] Commands registered: /memory, /clear, /tools, /recover, /help, /status, /voice");
       }).catch(console.error);
       
       return bot;
@@ -302,4 +266,41 @@ Just chat with me normally for anything else!`);
       bot.stop("shutdown");
     },
   };
+}
+
+// Helper function to send response (text or voice)
+async function sendResponse(ctx: Context, text: string, userId: string, agent: any) {
+  const voiceMode = voiceModeUsers.get(userId) || false;
+  
+  if (voiceMode && text.length > 0) {
+    // Send as voice message
+    try {
+      const ttsSkill = (agent as any).skills?.get("tts");
+      if (ttsSkill) {
+        const ttsResult = await ttsSkill.execute({ text: text.slice(0, 500), voice: "lessac" });
+        
+        // Extract audio file path from result
+        const match = ttsResult.match(/AUDIO_FILE:(.+)$/m);
+        if (match && fs.existsSync(match[1])) {
+          await ctx.replyWithAudio({ source: match[1] });
+          // Clean up
+          fs.unlinkSync(match[1]);
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.error("[Telegram] TTS error:", err.message);
+      // Fall back to text
+    }
+  }
+  
+  // Send as text
+  if (text.length > 4000) {
+    const chunks = text.match(/.{1,4000}/g) || [];
+    for (const chunk of chunks) {
+      await ctx.reply(chunk);
+    }
+  } else {
+    await ctx.reply(text);
+  }
 }

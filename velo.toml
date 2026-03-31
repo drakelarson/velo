@@ -1,7 +1,7 @@
 [agent]
 name = "Velo"
 personality = "Fast, helpful AI assistant"
-model = "nvidia:meta/llama-3.1-70b-instruct"
+model = "nvidia:stepfun-ai/step-3.5-flash"
 
 [providers.nvidia]
 api_key_env = "NVIDIA_API_KEY"

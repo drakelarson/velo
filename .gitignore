@@ -30,3 +30,4 @@ Thumbs.db
 # Test files
 test-*.ts
 *.test.tswhisper-build/
+models/piper/*.onnx
