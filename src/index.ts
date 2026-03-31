@@ -604,6 +604,96 @@ async function main() {
       break;
     }
 
+    case "plugin": {
+      const subCmd = args[1];
+      
+      switch (subCmd) {
+        case "list": {
+          const { listInstalledPlugins } = await import("./plugins.ts");
+          await listInstalledPlugins();
+          break;
+        }
+        case "install": {
+          const source = args[2];
+          if (!source) {
+            console.error("Usage: velo plugin install <npm-package | local-path>");
+            console.error("Examples:");
+            console.error("  velo plugin install velo-plugin-slack");
+            console.error("  velo plugin install ./my-plugin");
+            process.exit(1);
+          }
+          const { installPlugin } = await import("./plugins.ts");
+          await installPlugin(source);
+          break;
+        }
+        case "uninstall": {
+          const name = args[2];
+          if (!name) {
+            console.error("Usage: velo plugin uninstall <plugin-name>");
+            process.exit(1);
+          }
+          const { uninstallPlugin } = await import("./plugins.ts");
+          await uninstallPlugin(name);
+          break;
+        }
+        case "create": {
+          const name = args[2];
+          if (!name) {
+            console.error("Usage: velo plugin create <name>");
+            console.error("Example: velo plugin create slack");
+            process.exit(1);
+          }
+          const { createPluginScaffold } = await import("./plugins.ts");
+          await createPluginScaffold(name);
+          break;
+        }
+        case "enable": {
+          const name = args[2];
+          if (!name) {
+            console.error("Usage: velo plugin enable <plugin-name>");
+            process.exit(1);
+          }
+          const { PluginManager } = await import("./plugins.ts");
+          const manager = new PluginManager();
+          await manager.discover();
+          if (manager.setEnabled(name, true)) {
+            manager.saveState();
+            console.log(`✓ Plugin enabled: ${name}`);
+          } else {
+            console.error(`✗ Plugin not found: ${name}`);
+          }
+          break;
+        }
+        case "disable": {
+          const name = args[2];
+          if (!name) {
+            console.error("Usage: velo plugin disable <plugin-name>");
+            process.exit(1);
+          }
+          const { PluginManager } = await import("./plugins.ts");
+          const manager = new PluginManager();
+          await manager.discover();
+          if (manager.setEnabled(name, false)) {
+            manager.saveState();
+            console.log(`✓ Plugin disabled: ${name}`);
+          } else {
+            console.error(`✗ Plugin not found: ${name}`);
+          }
+          break;
+        }
+        default:
+          console.log("\n🔌 Plugin Commands:\n");
+          console.log("  velo plugin list              List installed plugins");
+          console.log("  velo plugin install <source>  Install from npm or local path");
+          console.log("  velo plugin uninstall <name>  Remove a plugin");
+          console.log("  velo plugin create <name>     Create a new plugin scaffold");
+          console.log("  velo plugin enable <name>     Enable a disabled plugin");
+          console.log("  velo plugin disable <name>    Disable a plugin");
+          console.log("\nPlugins are npm packages with prefix 'velo-plugin-'\n");
+      }
+      break;
+    }
+
     case "status": {
       console.log(agent.getMemoryStatus());
       agent.close();

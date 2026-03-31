@@ -1,0 +1,11 @@
+{
+  "name": "velo-plugin-slack",
+  "version": "1.0.0",
+  "description": "Velo plugin: velo-plugin-slack",
+  "main": "src/index.ts",
+  "velo": {
+    "skills": [
+      "src/index.ts"
+    ]
+  }
+}
