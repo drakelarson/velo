@@ -6,7 +6,7 @@ import { createWebhookChannel } from "./channels/webhook.ts";
 import { createTelegramChannel } from "./channels/telegram.ts";
 import { loadConfig } from "./config.ts";
 import { loadSkills } from "./skills.ts";
-import { acquireLock, releaseLock } from "./lock.ts";
+import { acquireLock, releaseLock, acquireChannelLock, releaseChannelLock } from "./lock.ts";
 import type { Config } from "./types.ts";
 
 const VERSION = "0.1.0";
@@ -396,15 +396,16 @@ async function main() {
         process.exit(1);
       }
       
-      // Acquire lock for long-running process
-      if (!acquireLock()) {
-        console.error("✖ Another Velo instance is already running");
-        console.error("  Use 'pkill -f velo' to stop it first");
+      // Acquire TELEGRAM-specific lock (allows other channels to run)
+      if (!acquireChannelLock("telegram")) {
+        console.error("✖ Telegram bot is already running");
+        console.error("  Use 'pkill -f \"velo.*telegram\"' to stop it");
         process.exit(1);
       }
       
       console.log(`\n  ▓▓▓  Velo Telegram Bot  ▓▓▓\n`);
       console.log(`Model: ${config.agent.model}\n`);
+      console.log(`PID: ${process.pid}\n`);
       
       const telegram = createTelegramChannel(agent, token);
       const server = telegram.start();
@@ -414,7 +415,7 @@ async function main() {
         console.log("\nShutting down...");
         server.stop?.();
         agent.close();
-        releaseLock();
+        releaseChannelLock("telegram");
         process.exit(0);
       });
       break;
