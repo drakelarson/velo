@@ -634,13 +634,13 @@ mp3, wav, m4a, ogg, flac, webm
 
 ## TTS (Text-to-Speech)
 
-Velo responds with voice messages using local Piper TTS - **zero API costs!**
+Velo responds with voice messages using **Kokoro TTS** - natural, human-like voices with **zero API costs!**
 
 ### Setup
 
 ```bash
-# Piper TTS auto-installs on first use
-# Voice models (60MB) download automatically
+# Kokoro auto-installs on first use (pip install kokoro)
+# Models download automatically from HuggingFace (~82MB)
 ```
 
 ### Telegram Usage
@@ -654,24 +654,29 @@ When voice mode is ON, Velo responds with audio messages instead of text.
 
 ### Available Voices
 
-| Voice | Language | Style |
-|-------|----------|-------|
-| lessac | American | Natural (default) |
-| ryan | American | Male |
-| jenny | American | Female |
-| amy | British | Female |
-| alan | British | Male |
+| Voice | Accent | Gender | Style |
+|-------|--------|--------|-------|
+| bella | American | Female | Natural, warm (default) |
+| sarah | American | Female | Clear, professional |
+| nicole | American | Female | Friendly |
+| sky | American | Female | Soft |
+| adam | American | Male | Deep voice |
+| michael | American | Male | Conversational |
+| emma | British | Female | Elegant |
+| isabella | British | Female | Refined |
+| george | British | Male | Authoritative |
+| lewis | British | Male | Casual |
 
 ### CLI Usage
 
 ```bash
-velo chat "use tts to say 'Hello world'"
+velo chat "use tts skill with text 'Hello world' and voice bella"
 ```
 
 ### Technical Details
 
-- **Engine**: Piper TTS (ONNX runtime)
-- **Model Size**: ~60MB per voice
-- **Speed**: Real-time on CPU
-- **Quality**: Natural-sounding neural TTS
-- **Languages**: 30+ supported
+- **Engine**: Kokoro TTS (VITS-based)
+- **Model Size**: ~82MB total
+- **Speed**: ~0.5s for 5s audio (CPU)
+- **Quality**: Natural, human-like speech
+- **Languages**: English (more coming)
