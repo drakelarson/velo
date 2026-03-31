@@ -373,21 +373,15 @@ npm publish
 
 ## Multi-Agent Orchestration
 
-Orchestrate multiple agents to work together:
+Spawn specialized agents that
 
-```bash
-# In chat
-spawn_agent "Research the latest AI news and summarize"
-spawn_agent "Analyze the codebase and list all TODOs"
+## Self-Improvement Loop
 
-# Check status
-check_agent subagent_1
+Velo can automatically improve itself by:
 
-# Wait for completion
-wait_agent subagent_1
-```
-
-Each subagent runs independently with its own session and can use all tools.
+- **Analyzing user feedback**: Learning from user ratings and comments.
+- **Updating skills**: Regularly updating built-in skills and plugins.
+- **Optimizing performance**: Fine-tuning the underlying model and infrastructure.
 
 ## Project Structure
 

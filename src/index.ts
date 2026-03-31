@@ -607,20 +607,21 @@ async function main() {
       break;
     }
 
-    case "plugin": {
-      const { runPluginCLI } = await import("./plugins.ts");
-      await runPluginCLI(args.slice(1));
+    case "orchestrate": {
+      const { runOrchestrationCLI } = await import("./orchestration.ts");
+      await runOrchestrationCLI(args.slice(1));
       break;
     }
 
-    case "orchestrate": {
-      const { runOrchestrationCLI } = await import("./orchestration.ts");
-      const skillsMap = new Map<string, any>();
-      for (const skill of skills) {
-        skillsMap.set(skill.name, skill);
-      }
-      await runOrchestrationCLI(config, skillsMap, args.slice(1));
-      agent.close();
+    case "learn": {
+      const { runSelfImprovementCLI } = await import("./self_improvement.ts");
+      await runSelfImprovementCLI(args.slice(1));
+      break;
+    }
+
+    case "plugin": {
+      const { runPluginCLI } = await import("./plugins.ts");
+      await runPluginCLI(args.slice(1));
       break;
     }
 
