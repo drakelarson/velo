@@ -293,3 +293,49 @@ export default {
   },
 } as Skill;
 ```
+
+## Model Pricing (March 2026)
+
+### Local Models (FREE)
+| Model | Input | Output | Context |
+|-------|-------|--------|---------|
+| ollama:llama3.2 | FREE | FREE | 128K |
+| ollama:llama4-scout | FREE | FREE | **10M** |
+| ollama:llama4-maverick | FREE | FREE | 1M |
+| ollama:deepseek-v3 | FREE | FREE | 164K |
+
+### Budget Tier (< $1/M)
+| Model | Input | Output | Context |
+|-------|-------|--------|---------|
+| nvidia:step-3.5-flash | $0.10 | $0.30 | 256K |
+| meta:llama-4-scout | $0.08 | $0.30 | **10M** |
+| google:gemini-3.1-flash | $0.10 | $0.40 | 1M |
+| xai:grok-4.1-fast | $0.20 | $0.50 | 2M |
+| deepseek:v3.2 | $0.27 | $1.10 | 164K |
+| openai:gpt-5.4-nano | $0.20 | $0.80 | 128K |
+
+### Standard Tier ($1-5/M)
+| Model | Input | Output | Context |
+|-------|-------|--------|---------|
+| openai:gpt-5.4 | $2.50 | $15.00 | 1.05M |
+| openai:gpt-5.2 | $1.75 | $14.00 | 400K |
+| google:gemini-3.1-pro | $2.00 | $12.00 | 1M |
+| xai:grok-4.20 | $2.00 | $6.00 | 2M |
+| anthropic:claude-sonnet-4.6 | $3.00 | $15.00 | 200K |
+| moonshot:kimi-k2.5 | $0.60 | $2.50 | 262K |
+
+### Flagship Tier ($5+/M)
+| Model | Input | Output | Context |
+|-------|-------|--------|---------|
+| anthropic:claude-opus-4.6 | $5.00 | $25.00 | 200K |
+| openai:gpt-5.4-pro | $30.00 | $180.00 | 1.05M |
+
+**Example cost:** 1K input + 500 output tokens
+- Budget: ~$0.00025 (0.25μ)
+- Standard: ~$0.005 (5m)
+- Flagship: ~$0.018 (1.8¢)
+
+```bash
+velo models    # Show all 35 models with pricing
+velo usage      # Your actual usage with accurate costs
+```
