@@ -56,6 +56,9 @@ export class Brain {
       tools: tools?.length ? this.formatTools(tools) : undefined,
       tool_choice: tools?.length ? "auto" : undefined,
     });
+    
+    console.error(`[Brain] Model: ${this.model}, Tools: ${tools?.length || 0}, Tool calls in response: ${response.choices[0]?.message?.tool_calls?.length || 0}`);
+    console.error(`[Brain] Raw response: ${JSON.stringify(response)}`);
 
     const choice = response.choices[0];
     const content = choice.message.content || "";
@@ -80,8 +83,10 @@ export class Brain {
 
     // Fallback: parse XML tool calls from content (for non-compliant models)
     if (toolCalls.length === 0 && content.includes("<function=")) {
+      console.error(`[Brain] XML fallback triggered, content includes <function=>`);
       const parsed = this.parseXmlToolCalls(content);
       toolCalls.push(...parsed);
+      console.error(`[Brain] Parsed ${parsed.length} XML tool calls`);
     }
 
     // Extract token usage

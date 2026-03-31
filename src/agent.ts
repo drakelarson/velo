@@ -146,10 +146,12 @@ When you need to use a tool, the system will handle the tool call automatically.
     const maxIterations = 5;
     const toolResults: Array<{ toolCallId: string; name: string; result: string }> = [];
 
+    console.error("[Agent] toolCalls:", result.toolCalls.map((t: any) => t.name));
     while (result.toolCalls.length > 0 && iterations < maxIterations) {
       iterations++;
 
       for (const tc of result.toolCalls) {
+        console.error(`[Agent] Tool call: ${tc.name}, args: ${JSON.stringify(tc.arguments)}`);
         const skill = this.skills.get(tc.name);
         if (skill) {
           try {

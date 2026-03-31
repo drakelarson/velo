@@ -26,9 +26,11 @@ export async function loadSkills(directory: string): Promise<Skill[]> {
 
     for (const skillPath of files) {
       try {
+        console.error(`[Skills] Loading: ${skillPath}`);
         const module = await import(skillPath);
         
         if (module.default) {
+          console.error(`[Skills] Loaded skill: ${module.default.name}`);
           skills.push(module.default as Skill);
         }
       } catch (err) {
