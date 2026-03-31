@@ -631,3 +631,47 @@ mp3, wav, m4a, ogg, flac, webm
 
 **Privacy**: All processing happens locally - audio never leaves your machine.
 
+
+## TTS (Text-to-Speech)
+
+Velo responds with voice messages using local Piper TTS - **zero API costs!**
+
+### Setup
+
+```bash
+# Piper TTS auto-installs on first use
+# Voice models (60MB) download automatically
+```
+
+### Telegram Usage
+
+```
+/voice          # Toggle voice mode ON/OFF
+/status         # Shows current voice mode status
+```
+
+When voice mode is ON, Velo responds with audio messages instead of text.
+
+### Available Voices
+
+| Voice | Language | Style |
+|-------|----------|-------|
+| lessac | American | Natural (default) |
+| ryan | American | Male |
+| jenny | American | Female |
+| amy | British | Female |
+| alan | British | Male |
+
+### CLI Usage
+
+```bash
+velo chat "use tts to say 'Hello world'"
+```
+
+### Technical Details
+
+- **Engine**: Piper TTS (ONNX runtime)
+- **Model Size**: ~60MB per voice
+- **Speed**: Real-time on CPU
+- **Quality**: Natural-sounding neural TTS
+- **Languages**: 30+ supported
