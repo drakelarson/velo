@@ -686,3 +686,85 @@ velo chat "use tts skill with text 'Hello world' and voice bella"
 - **Speed**: ~0.5s for 5s audio (CPU)
 - **Quality**: Natural, human-like speech
 - **Languages**: English (more coming)
+
+## WhatsApp Channel
+
+Velo supports WhatsApp via the **Baileys** library (same as nanobot/OpenClaw).
+
+### Setup
+
+```bash
+# Start WhatsApp bridge (shows QR code)
+velo whatsapp
+
+# Scan QR code with WhatsApp mobile app
+# Settings > Linked Devices > Link a Device
+
+# After first scan, session is saved for auto-reconnect
+velo whatsapp
+```
+
+### How It Works
+
+1. **Bridge Server** (`bridge/`) - Node.js WebSocket server
+   - Uses @whiskeysockets/baileys for WhatsApp Web API
+   - Generates QR codes for linking
+   - Saves session for persistent connection
+
+2. **Velo Integration** (`src/channels/whatsapp.ts`)
+   - Connects to bridge via WebSocket
+   - Routes messages through Velo agent
+   - Supports all Velo features (TTS, transcription, etc.)
+
+### Architecture
+
+```
+velo whatsapp
+      ↓
+┌─────────────────────┐
+│  Velo WhatsApp CLI   │
+│  (Bun/TypeScript)    │
+└──────────┬──────────┘
+           │ WebSocket
+           ↓
+┌─────────────────────┐
+│  Bridge Server      │
+│  (Node.js/Baileys)  │
+└──────────┬──────────┘
+           │
+           ↓
+      WhatsApp API
+```
+
+### Features
+
+| Feature | Status |
+|---------|--------|
+| Text messages | ✅ |
+| Voice transcription | ✅ |
+| TTS responses | ✅ |
+| Session persistence | ✅ |
+| Multi-user support | ✅ |
+| QR code linking | ✅ |
+| Auto-reconnect | ✅ |
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `velo whatsapp` | Start WhatsApp bridge (shows QR) |
+| `velo whatsapp --status` | Check connection status |
+| `velo whatsapp --logout` | Logout and clear session |
+
+### Comparison with Other Frameworks
+
+| Feature | OpenClaw | Nanobot | Hermes | Velo |
+|---------|----------|---------|--------|------|
+| WhatsApp | ✅ | ✅ | ✅ | ✅ |
+| Telegram | ✅ | ✅ | ✅ | ✅ |
+| Discord | ✅ | ✅ | ✅ | 🔜 |
+| Slack | ✅ | ✅ | ✅ | 🔜 |
+| Email | ✅ | ❌ | ✅ | 🔜 |
+| QR Linking | ✅ | ✅ | ✅ | ✅ |
+| Session Save | ✅ | ✅ | ✅ | ✅ |
+

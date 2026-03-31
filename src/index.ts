@@ -519,6 +519,46 @@ async function main() {
       break;
     }
 
+    case "whatsapp": {
+      const waCmd = args[1];
+      
+      if (waCmd === "login") {
+        console.log("\n  ▓▓▓  Velo WhatsApp Login  ▓▓▓\n");
+        console.log("This will start the WhatsApp bridge and display a QR code.");
+        console.log("Scan it with WhatsApp (Settings > Linked Devices > Link a Device)\n");
+        const { WhatsAppChannel } = await import("./channels/whatsapp.ts");
+        const wa = new WhatsAppChannel(agent);
+        await wa.login();
+        agent.close();
+        return;
+      }
+      
+      if (!acquireChannelLock("whatsapp")) {
+        console.error("✖ WhatsApp bot is already running");
+        console.error("  Use 'pkill -f \"velo.*whatsapp\"' to stop it");
+        process.exit(1);
+      }
+      
+      console.log(`\n  ▓▓▓  Velo WhatsApp Bot  ▓▓▓\n`);
+      console.log(`Model: ${config.agent.model}\n`);
+      console.log(`PID: ${process.pid}\n`);
+      console.log(`Use "velo whatsapp login" first if not authenticated\n`);
+      
+      const { WhatsAppChannel } = await import("./channels/whatsapp.ts");
+      const wa = new WhatsAppChannel(agent);
+      await wa.start();
+      
+      // Handle shutdown
+      process.on("SIGINT", async () => {
+        console.log("\nShutting down...");
+        await wa.stop();
+        agent.close();
+        releaseChannelLock("whatsapp");
+        process.exit(0);
+      });
+      break;
+    }
+
     case "build": {
       console.log("Building single-binary executable...");
       const { build } = await import("bun");
