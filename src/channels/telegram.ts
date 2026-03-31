@@ -54,6 +54,28 @@ export function createTelegramChannel(agent: Agent, token: string) {
       return;
     }
 
+    // Handle /status command
+    if (message === "/status") {
+      const skills = Array.from((agent as any).skills?.keys?.() || []);
+      await ctx.reply(`🤖 Velo Bot Status\n\nPID: ${process.pid}\nModel: ${(agent as any).config?.agent?.model || "unknown"}\nTools: ${skills.length}\nSession: ${sessionId}`);
+      return;
+    }
+
+    // Handle /help command
+    if (message === "/help") {
+      await ctx.reply(`🤖 Velo Bot Commands
+
+/memory - View agent memory (facts & sessions)
+/clear - Clear conversation history
+/tools - List available tools
+/recover - Recover from crashed session
+/status - Check bot status
+/help - Show this message
+
+Just chat with me normally for anything else!`);
+      return;
+    }
+
     // Save checkpoint before processing (for crash recovery)
     recovery.save(sessionId, message);
 
@@ -96,14 +118,26 @@ export function createTelegramChannel(agent: Agent, token: string) {
   return {
     start: () => {
       console.log("[Telegram] Bot starting with long polling...");
+      
+      // Register commands for autocomplete popup
+      bot.telegram.setMyCommands([
+        { command: "memory", description: "View agent memory (facts & sessions)" },
+        { command: "clear", description: "Clear conversation history" },
+        { command: "tools", description: "List available tools" },
+        { command: "recover", description: "Recover from crashed session" },
+        { command: "help", description: "Show help message" },
+        { command: "status", description: "Check bot status" },
+      ]).catch(err => console.error("[Telegram] Failed to set commands:", err.message));
+      
       // Enable graceful stop
       bot.launch({
-        dropPendingUpdates: true, // Clear old updates on restart
+        dropPendingUpdates: true,
       });
       
       // Log when bot is ready
       bot.telegram.getMe().then((botInfo) => {
         console.log(`[Telegram] Connected as @${botInfo.username}`);
+        console.log("[Telegram] Commands registered: /memory, /clear, /tools, /recover, /help, /status");
       }).catch(console.error);
       
       return bot;
