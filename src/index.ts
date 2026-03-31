@@ -68,7 +68,7 @@ Quick Start:
 
 async function main() {
   const args = process.argv.slice(2);
-  const configPath = getConfigPath(args);
+  const configPath = getConfigPath(args, true);
   const modelOverride = getFlag(args, "--model");
 
   const command = args[0] || "help";

@@ -1,3 +1,4 @@
+import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
 import type { Config } from "./types.ts";
@@ -60,7 +61,7 @@ base_url = "https://api.minimaxi.com/v1"
 
 [memory]
 type = "sqlite"
-path = "./data/velo.db"
+path = "/root/.velo/data/velo.db"
 max_context_messages = 50
 
 # Session Compaction - Use FREE local Ollama models to compress history

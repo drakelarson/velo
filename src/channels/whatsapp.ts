@@ -1,3 +1,4 @@
+import * as os from "os";
 /**
  * WhatsApp Channel for Velo
  * Connects to Node.js bridge via WebSocket for WhatsApp Web protocol
@@ -47,7 +48,7 @@ export class WhatsAppChannel {
   }
 
   async ensureBridge(): Promise<boolean> {
-    const bridgeDir = path.join(process.cwd(), "bridge");
+    const bridgeDir = path.join(os.homedir(), ".velo", "bridge");
     const distPath = path.join(bridgeDir, "dist", "index.js");
 
     // Check if bridge is built
@@ -87,7 +88,7 @@ export class WhatsAppChannel {
   }
 
   async login(): Promise<void> {
-    const bridgeDir = path.join(process.cwd(), "bridge");
+    const bridgeDir = path.join(os.homedir(), ".velo", "bridge");
     
     console.log("[WhatsApp] Starting bridge for QR login...");
     console.log("[WhatsApp] Scan the QR code with WhatsApp (Settings > Linked Devices > Link a Device)");
@@ -95,7 +96,7 @@ export class WhatsAppChannel {
     const env = {
       ...process.env,
       BRIDGE_PORT: "3001",
-      AUTH_DIR: path.join(process.cwd(), "data", "whatsapp-auth"),
+      AUTH_DIR: path.join(os.homedir(), ".velo", "data", "whatsapp-auth"),
     };
     
     if (this.config.bridgeToken) {
@@ -118,11 +119,11 @@ export class WhatsAppChannel {
       throw new Error("Failed to setup WhatsApp bridge");
     }
 
-    const bridgeDir = path.join(process.cwd(), "bridge");
+    const bridgeDir = path.join(os.homedir(), ".velo", "bridge");
     const env = {
       ...process.env,
       BRIDGE_PORT: "3001",
-      AUTH_DIR: path.join(process.cwd(), "data", "whatsapp-auth"),
+      AUTH_DIR: path.join(os.homedir(), ".velo", "data", "whatsapp-auth"),
     };
     
     if (this.config.bridgeToken) {
