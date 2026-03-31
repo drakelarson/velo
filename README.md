@@ -646,11 +646,17 @@ Velo responds with voice messages using **Kokoro TTS** - natural, human-like voi
 ### Telegram Usage
 
 ```
-/voice          # Toggle voice mode ON/OFF
-/status         # Shows current voice mode status
+/voice              # Toggle voice mode ON/OFF
+/voice list         # Show all 10 available voices
+/voice Emma         # Set voice to Emma (British female)
+/voice on           # Enable voice mode
+/voice off          # Disable voice mode
+/status             # Shows current voice mode & selected voice
 ```
 
 When voice mode is ON, Velo responds with audio messages instead of text.
+
+**Voice preference is saved per user** - set your favorite once and it persists!
 
 ### Available Voices
 
