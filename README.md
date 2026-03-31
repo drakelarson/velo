@@ -61,6 +61,8 @@ velo build                        # Build standalone binary
 | **Providers** | NVIDIA, OpenAI, Anthropic, OpenRouter, MiniMax, Ollama |
 | **Channels** | Webhook (HTTP), Telegram, (Discord/Email ready) |
 | **Binary** | 100MB standalone executable |
+| **MCP** | Model Context Protocol (stdio + HTTP) |
+| **Compaction** | FREE auto-setup with local Ollama |
 
 ## Message Management
 
@@ -195,6 +197,116 @@ OPENAI_API_KEY=sk-xxx
 | Single binary | No | Yes | **Yes** |
 | Memory | Partial | None | **3-tier** |
 | Channels | Many | Few | **Extensible** |
+| MCP Support | Yes | No | **Yes (stdio + HTTP)** |
+| Session Compaction | Yes | No | **Yes (FREE local)** |
+| Subagents | No | No | **Yes** |
+
+## MCP Integration
+
+Velo supports the **Model Context Protocol** (MCP) — use Velo's tools from Claude Desktop, Cursor, or any MCP client.
+
+### Claude Desktop Setup
+
+Add to your Claude config:
+```json
+{
+  "mcpServers": {
+    "velo": {
+      "command": "velo",
+      "args": ["mcp", "start"]
+    }
+  }
+}
+```
+
+Now Claude Desktop has access to all 91 Velo tools!
+
+### Connect External MCP Servers
+
+In chat, connect to MCP servers for additional tools:
+```
+mcp_connect npx -y @modelcontextprotocol/server-filesystem ./data
+mcp_connect npx -y @modelcontextprotocol/server-github
+```
+
+### HTTP Transport
+
+MCP over HTTP for remote access:
+```bash
+# List tools
+curl http://localhost:3000/mcp/tools
+
+# Call a tool
+curl -X POST http://localhost:3000/mcp/call \
+  -d '{"tool": "web_search", "args": {"query": "hello"}}'
+```
+
+### CLI Commands
+```bash
+velo mcp start    # Start MCP server (stdio)
+velo mcp tools    # List available MCP tools
+```
+
+## Session Compaction (FREE)
+
+Velo automatically compresses old messages using **FREE local models** — no API costs!
+
+### How It Works
+
+1. When session hits 40+ messages → triggers compaction
+2. Keeps last 10 messages uncompressed
+3. Summarizes older messages with **local Ollama** model
+4. Stores summary + metadata in SQLite
+
+### Zero Setup Required
+
+Velo handles everything automatically:
+- ✅ **Auto-installs Ollama** if not present
+- ✅ **Wakes Ollama on demand** (starts service when needed)
+- ✅ **Pulls model automatically** (qwen2.5:0.5b, ~500MB)
+- ✅ **Zero config needed** — works out of the box
+
+### CLI Commands
+```bash
+velo compact <session>              # Manual compaction
+velo compact test qwen2.5:0.5b      # Test with specific model
+velo compact status <session>       # View compaction history
+```
+
+### Config (optional)
+```toml
+[compaction]
+enabled = true
+model = "qwen2.5:0.5b"       # FREE, ~500MB
+trigger_threshold = 40        # Compact at 40 messages
+keep_recent = 10              # Keep last 10 uncompressed
+```
+
+### Supported Models (all FREE)
+| Model | Size | Speed | Use Case |
+|-------|------|-------|----------|
+| qwen2.5:0.5b | ~500MB | ⚡ Fastest | Compaction |
+| qwen2.5:1.5b | ~1GB | Fast | Better summaries |
+| llama3.2:1b | ~1.3GB | Fast | General purpose |
+| llama3.2:3b | ~2GB | Medium | High quality |
+
+## Subagent Spawning
+
+Spawn independent agents to work in parallel:
+
+```bash
+# In chat
+spawn_agent "Research the latest AI news and summarize"
+spawn_agent "Analyze the codebase and list all TODOs"
+
+# Check status
+check_agent subagent_1
+
+# Wait for completion
+wait_agent subagent_1
+```
+
+Each subagent runs independently with its own session and can use all tools.
 
 ## Project Structure
 
