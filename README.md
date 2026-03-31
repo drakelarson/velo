@@ -311,7 +311,7 @@ Each subagent runs independently with its own session and can use all tools.
 
 ## Plugin System (npm-based)
 
-Extend Velo with npm packages or local plugins:
+Extend Velo with npm packages or local plugins.
 
 ### Create a Plugin
 
@@ -370,6 +370,24 @@ cd plugins/slack
 npm publish
 # Users can now: velo plugin install velo-plugin-slack
 ```
+
+## Multi-Agent Orchestration
+
+Orchestrate multiple agents to work together:
+
+```bash
+# In chat
+spawn_agent "Research the latest AI news and summarize"
+spawn_agent "Analyze the codebase and list all TODOs"
+
+# Check status
+check_agent subagent_1
+
+# Wait for completion
+wait_agent subagent_1
+```
+
+Each subagent runs independently with its own session and can use all tools.
 
 ## Project Structure
 
