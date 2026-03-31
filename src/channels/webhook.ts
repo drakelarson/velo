@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { Agent } from "../agent.ts";
 
+// MCP HTTP transport state
+let mcpServer: any = null;
+
 export function createWebhookChannel(agent: Agent, port: number = 3000) {
   const app = new Hono();
 
@@ -74,9 +77,64 @@ export function createWebhookChannel(agent: Agent, port: number = 3000) {
 
   app.get("/health", (c) => c.json({ status: "ok" }));
 
+  // === MCP HTTP Endpoints ===
+  
+  // List available MCP tools
+  app.get("/mcp/tools", (c) => {
+    const skills = Array.from((agent as any).skills?.keys?.() || []);
+    return c.json({
+      server: "Velo MCP",
+      tools: skills,
+      count: skills.length
+    });
+  });
+
+  // Execute an MCP tool
+  app.post("/mcp/call", async (c) => {
+    const body = await c.req.json<{ tool: string; arguments?: Record<string, unknown> }>();
+    
+    if (!body.tool) {
+      return c.json({ error: "Missing tool name" }, 400);
+    }
+
+    const skill = (agent as any).skills?.get?.(body.tool);
+    if (!skill) {
+      return c.json({ error: `Tool not found: ${body.tool}` }, 404);
+    }
+
+    try {
+      const result = await skill.execute(body.arguments || {});
+      return c.json({ result });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // MCP server info
+  app.get("/mcp", (c) => {
+    const skills = Array.from((agent as any).skills?.keys?.() || []);
+    return c.json({
+      name: "Velo MCP Server",
+      version: "0.1.0",
+      capabilities: {
+        tools: { listChanged: false },
+        resources: { subscribe: false, listChanged: false },
+        prompts: { listChanged: false },
+      },
+      tools_count: skills.length,
+      endpoints: {
+        tools: "GET /mcp/tools",
+        call: "POST /mcp/call { tool, arguments }",
+        memory: "GET /memory",
+        chat: "POST /chat { message, session? }"
+      }
+    });
+  });
+
   return {
     start: () => {
       console.log(`[Webhook] Server started on port ${port}`);
+      console.log(`[Webhook] MCP endpoints: GET /mcp, GET /mcp/tools, POST /mcp/call`);
       return Bun.serve({ port, fetch: app.fetch });
     },
   };

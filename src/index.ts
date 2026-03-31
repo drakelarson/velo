@@ -483,10 +483,59 @@ async function main() {
 
 
     case "mcp": {
-      console.log("\n📡 MCP (Model Context Protocol):\n");
-      console.log("  velo mcp tools          List available MCP tools");
-      console.log("\nMCP allows Claude Desktop and other AI apps to use Velo tools.");
-      console.log("Run 'velo mcp start' to start the MCP server.\n");
+      const subCmd = args[1];
+      
+      if (subCmd === "start") {
+        // Start MCP server over stdio (for Claude Desktop integration)
+        console.error("[MCP] Starting Velo MCP Server...");
+        
+        const { VeloMCPServer } = await import("./mcp.ts");
+        const server = new VeloMCPServer({
+          name: "Velo",
+          version: VERSION,
+          skills: (agent as any).skills,
+          agent,
+        });
+        
+        // Add memory as a resource
+        server.addResource("velo://memory", "Memory", "Agent memory and facts", async () => {
+          return agent.getMemoryStatus();
+        });
+        
+        // Add config as a resource
+        server.addResource("velo://config", "Config", "Agent configuration", async () => {
+          return JSON.stringify(config, null, 2);
+        });
+        
+        // Add a prompt template
+        server.addPrompt("chat", "Start a conversation with Velo", "Hello! I'd like to chat with you.");
+        
+        await server.startStdio();
+        
+        // Keep process alive
+        process.stdin.resume();
+      } else if (subCmd === "tools") {
+        const skills = Array.from((agent as any).skills?.keys?.() || []);
+        console.log("\n📡 MCP Tools Available:\n");
+        console.log(`  ${skills.length} tools registered\n`);
+        console.log("To use with Claude Desktop, add to your config:");
+        console.log(JSON.stringify({
+          mcpServers: {
+            velo: {
+              command: "velo",
+              args: ["mcp", "start"]
+            }
+          }
+        }, null, 2));
+        agent.close();
+      } else {
+        console.log("\n📡 MCP (Model Context Protocol):\n");
+        console.log("  velo mcp start         Start MCP server (for Claude Desktop)");
+        console.log("  velo mcp tools         List MCP tools with Claude config");
+        console.log("\nMCP allows Claude Desktop and other AI apps to use Velo tools.");
+        console.log("Run 'velo mcp start' to start the MCP server.\n");
+        agent.close();
+      }
       break;
     }
 
@@ -496,9 +545,13 @@ async function main() {
         console.log("\n🤖 Subagent Commands:\n");
         console.log("  velo subagent <prompt>   Spawn a subagent for parallel task");
         console.log("\nSubagents run tasks in parallel with the main agent.\n");
+        agent.close();
       } else {
         console.log(`Spawning subagent for: ${prompt.slice(0, 50)}...`);
-        console.log("(Subagent spawning requires integration - coming soon)");
+        const { spawnSubagent } = await import("./subagent.ts");
+        const result = await spawnSubagent(prompt, config);
+        console.log(result);
+        agent.close();
       }
       break;
     }

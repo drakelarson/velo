@@ -70,7 +70,7 @@ export class SubagentManager {
     task.startedAt = new Date();
 
     // Create a new agent instance for this subagent
-    const subAgent = new Agent(this.config, false); // Disable checkpoint for subagents
+    const subAgent = new Agent(this.config);
     subAgent.setSession(sessionId || `subagent_${task.id}`);
 
     // Inherit skills if configured
@@ -227,4 +227,19 @@ export function createWaitAgentSkill(manager: SubagentManager): Skill {
       }
     },
   };
+}
+
+// Standalone spawn function for CLI use
+export async function spawnSubagent(prompt: string, config: Config): Promise<string> {
+  const agent = new Agent(config);
+  agent.setSession("subagent_cli");
+  
+  try {
+    const result = await agent.process(prompt);
+    agent.close();
+    return result;
+  } catch (err: any) {
+    agent.close();
+    return `Error: ${err.message}`;
+  }
 }
