@@ -1,11 +1,167 @@
 import { Telegraf, Context } from "telegraf";
 import { CrashRecovery } from "../recovery.ts";
+import * as fs from "fs";
+import * as path from "path";
+import { spawn } from "bun";
 
 export function createTelegramChannel(agent: any, token: string) {
   const bot = new Telegraf(token);
   const recovery = new CrashRecovery(agent.config?.memory?.path || "./data/velo.db");
   
   // No premature cleanup - handle cleanup only on explicit shutdown
+
+  // Handle voice messages
+  bot.on("voice", async (ctx: Context) => {
+    const voice = ctx.message?.voice;
+    if (!voice) return;
+
+    const userId = ctx.from?.id?.toString() || "unknown";
+    const sessionId = `telegram:${userId}`;
+    agent.setSession(sessionId);
+
+    await ctx.reply("🎧 Transcribing voice message...");
+    await ctx.sendChatAction("typing");
+
+    try {
+      // Get file info
+      const fileInfo = await ctx.telegram.getFile(voice.file_id);
+      const fileUrl = await ctx.telegram.getFileLink(fileInfo);
+
+      // Download voice file (OGG format)
+      const tempDir = path.join(process.cwd(), "temp");
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const oggPath = path.join(tempDir, `${voice.file_id}.ogg`);
+      const wavPath = path.join(tempDir, `${voice.file_id}.wav`);
+
+      // Download file
+      const response = await fetch(fileUrl.toString());
+      const buffer = await response.arrayBuffer();
+      fs.writeFileSync(oggPath, Buffer.from(buffer));
+
+      // Convert OGG to WAV using ffmpeg
+      const ffmpegResult = spawn({
+        cmd: ["ffmpeg", "-y", "-i", oggPath, "-ar", "16000", "-ac", "1", wavPath],
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await ffmpegResult.exited;
+
+      if (ffmpegResult.exitCode !== 0) {
+        throw new Error("Failed to convert audio format");
+      }
+
+      // Transcribe using the transcribe skill
+      const transcribeSkill = (agent as any).skills?.get("transcribe");
+      if (!transcribeSkill) {
+        await ctx.reply("❌ Transcription skill not available.");
+        return;
+      }
+
+      const transcription = await transcribeSkill.execute({ 
+        file: wavPath, 
+        language: "en",
+        model: "tiny" 
+      });
+
+      // Clean up temp files
+      fs.unlinkSync(oggPath);
+      fs.unlinkSync(wavPath);
+
+      // Send transcription
+      await ctx.reply(transcription);
+
+      // Now process the transcribed text with the agent
+      const transcribedText = transcription.replace(/^[📝\s]*TRANSCRIPTION:?\s*/i, "").trim();
+      if (transcribedText && transcribedText.length > 0) {
+        recovery.save(sessionId, `[Voice] ${transcribedText}`);
+        
+        const response = await agent.process(transcribedText);
+        
+        if (response.length > 4000) {
+          const chunks = response.match(/.{1,4000}/g) || [];
+          for (const chunk of chunks) {
+            await ctx.reply(chunk);
+          }
+        } else {
+          await ctx.reply(response);
+        }
+      }
+
+    } catch (err: any) {
+      console.error("[Telegram] Voice transcription error:", err?.message);
+      await ctx.reply(`❌ Voice transcription failed: ${err.message}`);
+    }
+  });
+
+  // Handle audio files (same as voice but different format)
+  bot.on("audio", async (ctx: Context) => {
+    const audio = ctx.message?.audio;
+    if (!audio) return;
+
+    const userId = ctx.from?.id?.toString() || "unknown";
+    const sessionId = `telegram:${userId}`;
+    agent.setSession(sessionId);
+
+    await ctx.reply("🎧 Transcribing audio file...");
+    await ctx.sendChatAction("typing");
+
+    try {
+      const fileInfo = await ctx.telegram.getFile(audio.file_id);
+      const fileUrl = await ctx.telegram.getFileLink(fileInfo);
+
+      const tempDir = path.join(process.cwd(), "temp");
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const audioPath = path.join(tempDir, audio.file_name || `${audio.file_id}.mp3`);
+
+      // Download
+      const response = await fetch(fileUrl.toString());
+      const buffer = await response.arrayBuffer();
+      fs.writeFileSync(audioPath, Buffer.from(buffer));
+
+      // Transcribe
+      const transcribeSkill = (agent as any).skills?.get("transcribe");
+      if (!transcribeSkill) {
+        await ctx.reply("❌ Transcription skill not available.");
+        return;
+      }
+
+      const transcription = await transcribeSkill.execute({ 
+        file: audioPath,
+        model: "tiny" 
+      });
+
+      // Clean up
+      fs.unlinkSync(audioPath);
+
+      await ctx.reply(transcription);
+
+      // Process with agent
+      const transcribedText = transcription.replace(/^[📝\s]*TRANSCRIPTION:?\s*/i, "").trim();
+      if (transcribedText && transcribedText.length > 0) {
+        recovery.save(sessionId, `[Audio] ${transcribedText}`);
+        const response = await agent.process(transcribedText);
+        
+        if (response.length > 4000) {
+          const chunks = response.match(/.{1,4000}/g) || [];
+          for (const chunk of chunks) {
+            await ctx.reply(chunk);
+          }
+        } else {
+          await ctx.reply(response);
+        }
+      }
+
+    } catch (err: any) {
+      console.error("[Telegram] Audio transcription error:", err?.message);
+      await ctx.reply(`❌ Audio transcription failed: ${err.message}`);
+    }
+  });
 
   bot.on("text", async (ctx: Context) => {
     const message = ctx.message?.text;

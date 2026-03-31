@@ -29,4 +29,4 @@ Thumbs.db
 
 # Test files
 test-*.ts
-*.test.ts
+*.test.tswhisper-build/
