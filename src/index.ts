@@ -400,6 +400,20 @@ async function main() {
       break;
     }
 
+    case "models": {
+      const { getAvailableModels, compareModelCosts, formatCost } = await import("./pricing.ts");
+      console.log("\n═════════ AVAILABLE MODELS ═════════\n");
+      const comparison = compareModelCosts(1000, 500);
+      for (const m of comparison.slice(0, 15)) {
+        console.log(`${m.key}`);
+        console.log(`  Input: $${m.pricing.input}/1M  Output: $${m.pricing.output}/1M`);
+        console.log(`  Example cost (1K+500): ${formatCost(m.cost)}\n`);
+      }
+      console.log(`Total: ${comparison.length} models configured`);
+      console.log("\n═══════════════════════════════");
+      break;
+    }
+
     case "recover": {
       const recovery = new (await import("./agent.ts")).CrashRecovery(config.memory.path);
       const crashed = recovery.getCrashed();

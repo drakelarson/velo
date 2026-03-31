@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { getModelPricing, calculateCost, formatCost, type ModelPricing } from "./pricing.ts";
 import type { Message } from "./types.ts";
 
 export class Memory {

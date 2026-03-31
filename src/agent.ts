@@ -1,5 +1,6 @@
 import { Memory } from "./memory.ts";
 import { Brain, type ToolCall } from "./brain.ts";
+import { getModelPricing, calculateCost, formatCost } from "./pricing.ts";
 import type { Config, Message, Skill, Tool } from "./types.ts";
 
 export class Agent {
@@ -241,6 +242,11 @@ When you need to use a tool, the system will handle the tool call automatically.
     const sessionUsage = this.memory.getSessionUsage(session);
     const totalUsage = this.memory.getTotalUsage();
 
+    // Get pricing for current model
+    const pricing = getModelPricing(this.config.agent.model);
+    const sessionCost = calculateCost(sessionUsage.promptTokens, sessionUsage.completionTokens, pricing);
+    const totalCost = calculateCost(totalUsage.promptTokens, totalUsage.completionTokens, pricing);
+
     let output = "═════════ TOKEN USAGE ═════════\n\n";
 
     // Current session
@@ -249,6 +255,7 @@ When you need to use a tool, the system will handle the tool call automatically.
     output += `  Completion: ${sessionUsage.completionTokens.toLocaleString()} tokens\n`;
     output += `  Total: ${sessionUsage.totalTokens.toLocaleString()} tokens\n`;
     output += `  API Calls: ${sessionUsage.apiCalls}\n`;
+    output += `  Cost: ${formatCost(sessionCost)}\n`;
 
     // Total
     output += `\n📈 ALL-TIME TOTAL:\n`;
@@ -257,14 +264,15 @@ When you need to use a tool, the system will handle the tool call automatically.
     output += `  Total: ${totalUsage.totalTokens.toLocaleString()} tokens\n`;
     output += `  API Calls: ${totalUsage.apiCalls}\n`;
     output += `  Sessions: ${totalUsage.sessions}\n`;
+    output += `  Cost: ${formatCost(totalCost)}\n`;
 
-    // Estimated cost (StepFun Step 3.5 Flash pricing)
-    // Input: $0.10 per 1M tokens, Output: $0.30 per 1M tokens
-    const inputCost = totalUsage.promptTokens * 0.0000001;  // $0.10/1M
-    const outputCost = totalUsage.completionTokens * 0.0000003;  // $0.30/1M
-    const estimatedCost = (inputCost + outputCost).toFixed(6);
-    output += `\n💰 ESTIMATED COST: $${estimatedCost}\n`;
-    output += `  (at $0.10/1M input, $0.30/1M output)\n`;
+    // Pricing info
+    output += `\n💰 PRICING (${this.config.agent.model}):\n`;
+    output += `  Input: $${pricing.input}/1M tokens\n`;
+    output += `  Output: $${pricing.output}/1M tokens\n`;
+    if (pricing.context) {
+      output += `  Context: ${pricing.context.toLocaleString()} tokens max\n`;
+    }
 
     output += "\n═══════════════════════════════";
     return output;
