@@ -154,6 +154,17 @@ When you need to use a tool, the system will handle the tool call automatically.
     // Strip any remaining XML tool calls from content
     const cleanContent = this.brain.stripToolCalls(result.content);
 
+    // Track token usage if available
+    if (result.usage) {
+      this.memory.addUsage(
+        this.sessionId,
+        result.usage.promptTokens,
+        result.usage.completionTokens,
+        result.usage.totalTokens,
+        this.config.agent.model
+      );
+    }
+
     // Store clean response
     this.memory.addMessage(this.sessionId, "assistant", cleanContent);
     return cleanContent;
@@ -220,6 +231,36 @@ When you need to use a tool, the system will handle the tool call automatically.
         output += `  ${session} (${count} messages)\n`;
       }
     }
+
+    output += "\n═══════════════════════════════";
+    return output;
+  }
+
+  getUsageStatus(sessionId?: string): string {
+    const session = sessionId || this.sessionId;
+    const sessionUsage = this.memory.getSessionUsage(session);
+    const totalUsage = this.memory.getTotalUsage();
+
+    let output = "═════════ TOKEN USAGE ═════════\n\n";
+
+    // Current session
+    output += `📊 SESSION (${session}):\n`;
+    output += `  Prompt: ${sessionUsage.promptTokens.toLocaleString()} tokens\n`;
+    output += `  Completion: ${sessionUsage.completionTokens.toLocaleString()} tokens\n`;
+    output += `  Total: ${sessionUsage.totalTokens.toLocaleString()} tokens\n`;
+    output += `  API Calls: ${sessionUsage.apiCalls}\n`;
+
+    // Total
+    output += `\n📈 ALL-TIME TOTAL:\n`;
+    output += `  Prompt: ${totalUsage.promptTokens.toLocaleString()} tokens\n`;
+    output += `  Completion: ${totalUsage.completionTokens.toLocaleString()} tokens\n`;
+    output += `  Total: ${totalUsage.totalTokens.toLocaleString()} tokens\n`;
+    output += `  API Calls: ${totalUsage.apiCalls}\n`;
+    output += `  Sessions: ${totalUsage.sessions}\n`;
+
+    // Estimated cost (approximate, varies by model)
+    const estimatedCost = (totalUsage.promptTokens * 0.0003 + totalUsage.completionTokens * 0.0015).toFixed(4);
+    output += `\n💰 ESTIMATED COST: $${estimatedCost}\n`;
 
     output += "\n═══════════════════════════════";
     return output;

@@ -11,6 +11,11 @@ export interface ToolCall {
 export interface ThinkResult {
   content: string;
   toolCalls: ToolCall[];
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 }
 
 export class Brain {
@@ -79,7 +84,14 @@ export class Brain {
       toolCalls.push(...parsed);
     }
 
-    return { content, toolCalls };
+    // Extract token usage
+    const usage = response.usage ? {
+      promptTokens: response.usage.prompt_tokens,
+      completionTokens: response.usage.completion_tokens,
+      totalTokens: response.usage.total_tokens,
+    } : undefined;
+
+    return { content, toolCalls, usage };
   }
 
   async thinkWithToolResults(

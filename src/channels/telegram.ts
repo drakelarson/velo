@@ -54,6 +54,12 @@ export function createTelegramChannel(agent: Agent, token: string) {
       return;
     }
 
+    // Handle /usage command
+    if (message === "/usage") {
+      await ctx.reply(agent.getUsageStatus(sessionId));
+      return;
+    }
+
     // Handle /status command
     if (message === "/status") {
       const skills = Array.from((agent as any).skills?.keys?.() || []);
@@ -124,6 +130,7 @@ Just chat with me normally for anything else!`);
         { command: "memory", description: "View agent memory (facts & sessions)" },
         { command: "clear", description: "Clear conversation history" },
         { command: "tools", description: "List available tools" },
+        { command: "usage", description: "View token usage statistics" },
         { command: "recover", description: "Recover from crashed session" },
         { command: "help", description: "Show help message" },
         { command: "status", description: "Check bot status" },

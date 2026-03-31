@@ -40,6 +40,18 @@ export class Memory {
       
       CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
       CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+      
+      CREATE TABLE IF NOT EXISTS usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        prompt_tokens INTEGER NOT NULL,
+        completion_tokens INTEGER NOT NULL,
+        total_tokens INTEGER NOT NULL,
+        model TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
     `);
   }
 
@@ -112,6 +124,49 @@ export class Memory {
     );
     const row = stmt.get(sessionId) as { count: number };
     return row?.count || 0;
+  }
+
+  // Token usage tracking
+  addUsage(sessionId: string, promptTokens: number, completionTokens: number, totalTokens: number, model?: string): void {
+    const stmt = this.db.prepare(
+      "INSERT INTO usage (session_id, prompt_tokens, completion_tokens, total_tokens, model) VALUES (?, ?, ?, ?, ?)"
+    );
+    stmt.run(sessionId, promptTokens, completionTokens, totalTokens, model || null);
+  }
+
+  getSessionUsage(sessionId: string): { promptTokens: number; completionTokens: number; totalTokens: number; apiCalls: number } {
+    const stmt = this.db.prepare(`
+      SELECT 
+        SUM(prompt_tokens) as promptTokens,
+        SUM(completion_tokens) as completionTokens,
+        SUM(total_tokens) as totalTokens,
+        COUNT(*) as apiCalls
+      FROM usage WHERE session_id = ?
+    `);
+    const row = stmt.get(sessionId) as { promptTokens: number; completionTokens: number; totalTokens: number; apiCalls: number } | undefined;
+    return row || { promptTokens: 0, completionTokens: 0, totalTokens: 0, apiCalls: 0 };
+  }
+
+  getTotalUsage(): { promptTokens: number; completionTokens: number; totalTokens: number; apiCalls: number; sessions: number } {
+    const stmt = this.db.prepare(`
+      SELECT 
+        SUM(prompt_tokens) as promptTokens,
+        SUM(completion_tokens) as completionTokens,
+        SUM(total_tokens) as totalTokens,
+        COUNT(*) as apiCalls,
+        COUNT(DISTINCT session_id) as sessions
+      FROM usage
+    `);
+    const row = stmt.get() as { promptTokens: number; completionTokens: number; totalTokens: number; apiCalls: number; sessions: number } | undefined;
+    return row || { promptTokens: 0, completionTokens: 0, totalTokens: 0, apiCalls: 0, sessions: 0 };
+  }
+
+  clearUsage(sessionId?: string): void {
+    if (sessionId) {
+      this.db.run("DELETE FROM usage WHERE session_id = ?", sessionId);
+    } else {
+      this.db.run("DELETE FROM usage");
+    }
   }
 
   // Scheduled tasks
