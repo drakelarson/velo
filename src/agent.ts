@@ -258,9 +258,13 @@ When you need to use a tool, the system will handle the tool call automatically.
     output += `  API Calls: ${totalUsage.apiCalls}\n`;
     output += `  Sessions: ${totalUsage.sessions}\n`;
 
-    // Estimated cost (approximate, varies by model)
-    const estimatedCost = (totalUsage.promptTokens * 0.0003 + totalUsage.completionTokens * 0.0015).toFixed(4);
+    // Estimated cost (StepFun Step 3.5 Flash pricing)
+    // Input: $0.10 per 1M tokens, Output: $0.30 per 1M tokens
+    const inputCost = totalUsage.promptTokens * 0.0000001;  // $0.10/1M
+    const outputCost = totalUsage.completionTokens * 0.0000003;  // $0.30/1M
+    const estimatedCost = (inputCost + outputCost).toFixed(6);
     output += `\n💰 ESTIMATED COST: $${estimatedCost}\n`;
+    output += `  (at $0.10/1M input, $0.30/1M output)\n`;
 
     output += "\n═══════════════════════════════";
     return output;
