@@ -200,6 +200,7 @@ OPENAI_API_KEY=sk-xxx
 | MCP Support | Yes | No | **Yes (stdio + HTTP)** |
 | Session Compaction | Yes | No | **Yes (FREE local)** |
 | Subagents | No | No | **Yes** |
+| Plugin System | Yes | No | **Yes (npm-based)** |
 
 ## MCP Integration
 
@@ -307,6 +308,68 @@ wait_agent subagent_1
 ```
 
 Each subagent runs independently with its own session and can use all tools.
+
+## Plugin System (npm-based)
+
+Extend Velo with npm packages or local plugins:
+
+### Create a Plugin
+
+```bash
+velo plugin create slack    # Creates plugins/slack/
+```
+
+Generates:
+```
+plugins/slack/
+├── package.json       # npm package config
+├── velo-plugin.json   # Velo manifest
+├── src/
+│   └── index.ts       # Your skills
+└── README.md
+```
+
+### Install Plugins
+
+```bash
+# From npm
+velo plugin install velo-plugin-slack
+velo plugin install @company/velo-plugin-custom
+
+# From local directory
+velo plugin install ./my-plugin
+```
+
+### Manage Plugins
+
+```bash
+velo plugin list              # List installed plugins
+velo plugin enable slack      # Enable a plugin
+velo plugin disable slack     # Disable a plugin
+velo plugin uninstall slack   # Remove a plugin
+```
+
+### Plugin Manifest
+
+```json
+// velo-plugin.json
+{
+  "name": "velo-plugin-slack",
+  "version": "1.0.0",
+  "skills": ["src/index.ts"],
+  "env": {
+    "SLACK_TOKEN": "Required for Slack API"
+  }
+}
+```
+
+### Publishing to npm
+
+```bash
+cd plugins/slack
+npm publish
+# Users can now: velo plugin install velo-plugin-slack
+```
 
 ## Project Structure
 
