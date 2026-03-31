@@ -198,7 +198,6 @@ export function createTelegramChannel(agent: any, token: string) {
       // /voice on/off or just /voice - toggle
       if (args === "on") {
         userSettings.enabled = true;
-      } else if (args === "off" || args === "exit") {
         userSettings.enabled = false;
       } else {
         userSettings.enabled = !userSettings.enabled;
