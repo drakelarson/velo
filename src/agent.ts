@@ -1,6 +1,7 @@
 import { Memory } from "./memory.ts";
 import { Brain, type ToolCall } from "./brain.ts";
 import { getModelPricing, calculateCost, formatCost } from "./pricing.ts";
+import { Compactor, type CompactorConfig } from "./compactor.ts";
 import type { Config, Message, Skill, Tool } from "./types.ts";
 
 export class Agent {
@@ -10,11 +11,28 @@ export class Agent {
   private skills: Map<string, Skill> = new Map();
   private sessionId: string = "default";
   private toolCallCounter: number = 0;
+  private compactor: Compactor | null = null;
 
   constructor(config: Config) {
     this.config = config;
     this.brain = new Brain(config.agent.model, config.providers);
     this.memory = new Memory(config.memory.path, config.memory.max_context_messages);
+    
+    // Initialize compactor if configured
+    if (config.compaction?.enabled) {
+      const providerConfig = this.getProviderConfig(config.compaction.model);
+      this.compactor = new Compactor(config.compaction, providerConfig);
+    }
+  }
+
+  getProviderConfig(model: string): { baseUrl?: string; apiKey?: string } {
+    const [provider] = model.split(":");
+    const prov = this.config.providers[provider];
+    const apiKey = prov?.apiKeyEnv ? process.env[prov.apiKeyEnv] : undefined;
+    return {
+      baseUrl: prov?.baseUrl,
+      apiKey,
+    };
   }
 
   registerSkill(skill: Skill): void {
@@ -91,6 +109,22 @@ When you need to use a tool, the system will handle the tool call automatically.
   }
 
   async process(input: string): Promise<string> {
+    // Check for compaction before processing
+    if (this.compactor) {
+      const allMessages = this.memory.getAllMessages(this.sessionId);
+      if (this.compactor.shouldCompact(allMessages.length)) {
+        const { compacted, result } = await this.compactor.compact(allMessages);
+        if (result) {
+          // Apply compaction to memory
+          this.memory.compactSession(
+            this.sessionId,
+            this.config.compaction?.keepRecent || 10,
+            result.summary
+          );
+        }
+      }
+    }
+
     // Add user message to memory
     this.memory.addMessage(this.sessionId, "user", input);
 
@@ -276,6 +310,11 @@ When you need to use a tool, the system will handle the tool call automatically.
 
     output += "\n═══════════════════════════════";
     return output;
+  }
+
+  // Get compaction history for a session
+  getCompactionHistory(sessionId: string): { summary: string; messages_compacted: number; created_at: string }[] {
+    return this.memory.getCompactionHistory(sessionId);
   }
 
   close(): void {

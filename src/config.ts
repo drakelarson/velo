@@ -63,6 +63,14 @@ type = "sqlite"
 path = "./data/velo.db"
 max_context_messages = 50
 
+# Session Compaction - Use FREE local Ollama models to compress history
+[compaction]
+enabled = true
+model = "ollama:qwen2.5:0.5b"  # FREE! Install: ollama pull qwen2.5:0.5b
+trigger_threshold = 40         # Compact when session has 40+ messages
+keep_recent = 10               # Keep last 10 messages uncompressed
+ollama_base = "http://localhost:11434"
+
 [channels.webhook]
 enabled = true
 port = 3000
@@ -88,6 +96,7 @@ export function parseToml(content: string): Config {
     channels: { webhook: { enabled: true, port: 3000 } },
     scheduler: { enabled: false, tasks: [] },
     skills: { directory: "./skills", auto_load: true },
+    compaction: { enabled: false, model: "ollama:qwen2.5:0.5b", triggerThreshold: 40, keepRecent: 10 },
   };
 
   let currentSection = "";

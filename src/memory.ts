@@ -52,6 +52,14 @@ export class Memory {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
       
+      CREATE TABLE IF NOT EXISTS compaction_summaries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        messages_compacted INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      
       CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
     `);
   }
@@ -75,6 +83,14 @@ export class Memory {
     return stmt.all(sessionId, lim).reverse() as Message[];
   }
 
+  // Get ALL messages for a session (for compaction check)
+  getAllMessages(sessionId: string): Message[] {
+    const stmt = this.db.prepare(
+      "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC"
+    );
+    return stmt.all(sessionId) as Message[];
+  }
+
   private trimMessages(sessionId: string): void {
     const stmt = this.db.prepare(`
       DELETE FROM messages WHERE id NOT IN (
@@ -83,6 +99,41 @@ export class Memory {
       ) AND session_id = ?
     `);
     stmt.run(sessionId, this.maxMessages, sessionId);
+  }
+
+  // Replace old messages with a compaction summary
+  compactSession(sessionId: string, keepRecent: number, summary: string): void {
+    // Get IDs of messages to delete
+    const deleteStmt = this.db.prepare(`
+      DELETE FROM messages WHERE session_id = ? 
+      AND id NOT IN (
+        SELECT id FROM messages WHERE session_id = ? 
+        ORDER BY created_at DESC LIMIT ?
+      )
+    `);
+    deleteStmt.run(sessionId, sessionId, keepRecent);
+
+    // Insert summary at the beginning
+    const insertStmt = this.db.prepare(
+      "INSERT INTO messages (session_id, role, content, created_at) VALUES (?, ?, ?, datetime('now', '-1 minute'))"
+    );
+    insertStmt.run(sessionId, "system", `[CONVERSATION SUMMARY]\n${summary}\n[END SUMMARY]`);
+
+    // Record compaction
+    const recordStmt = this.db.prepare(
+      "INSERT INTO compaction_summaries (session_id, summary, messages_compacted) VALUES (?, ?, ?)"
+    );
+    recordStmt.run(sessionId, summary, keepRecent);
+
+    console.log(`[Memory] Compacted session ${sessionId}, kept ${keepRecent} recent messages`);
+  }
+
+  // Get compaction history
+  getCompactionHistory(sessionId: string): { summary: string; messages_compacted: number; created_at: string }[] {
+    const stmt = this.db.prepare(
+      "SELECT summary, messages_compacted, created_at FROM compaction_summaries WHERE session_id = ? ORDER BY created_at DESC"
+    );
+    return stmt.all(sessionId) as { summary: string; messages_compacted: number; created_at: string }[];
   }
 
   // Long-term facts (user preferences, important info)

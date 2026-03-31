@@ -31,6 +31,10 @@ Commands:
   sessions        List all conversation sessions
   clear <session> Clear a session's history
   
+  compact <session>    Manually compact a session's history
+  compact test <model> Test compaction with a model
+  compact status <session>  Show compaction history
+  
   config show     Show current configuration
   config model <provider:model>   Set AI model
   config key <provider> <key>     Set API key
@@ -51,6 +55,7 @@ Examples:
   velo history                         # View recent messages
   velo sessions                        # List all sessions
   velo clear default                   # Clear default session
+  velo compact test ollama:qwen2.5:0.5b  # Test FREE local compaction
 
 Quick Start:
   1. velo setup
@@ -318,6 +323,49 @@ async function main() {
         };
 
         prompt();
+      }
+      break;
+    }
+
+    case "compact": {
+      const subCmd = args[1];
+      const sessionId = args[2] || "default";
+      
+      if (subCmd === "test") {
+        const { testCompaction } = await import("./compactor.ts");
+        const model = args[2] || "ollama:qwen2.5:0.5b";
+        await testCompaction(model);
+      } else if (subCmd === "status") {
+        const history = agent.getCompactionHistory(sessionId);
+        if (history.length === 0) {
+          console.log("No compaction history for this session.");
+        } else {
+          console.log(`\n═════════ COMPACTION HISTORY (${sessionId}) ═════════\n`);
+          for (const h of history) {
+            console.log(`Date: ${h.created_at}`);
+            console.log(`Messages compacted: ${h.messages_compacted}`);
+            console.log(`Summary: ${h.summary.slice(0, 100)}...`);
+            console.log("---");
+          }
+        }
+        agent.close();
+      } else if (sessionId) {
+        // Manual compaction
+        console.log(`Compacting session: ${sessionId}`);
+        const { Compactor } = await import("./compactor.ts");
+        const compactorCfg = config.compaction || { enabled: true, model: "ollama:qwen2.5:0.5b", triggerThreshold: 1, keepRecent: 10 };
+        const providerCfg = agent.getProviderConfig?.(compactorCfg.model) || {};
+        const compactor = new Compactor(compactorCfg, providerCfg);
+        
+        const messages = agent.getHistory();
+        const { compacted, result } = await compactor.compact(messages);
+        if (result) {
+          console.log(`✓ Compacted ${result.originalCount} messages → 1 summary`);
+          console.log(`  Tokens saved: ~${result.tokensSaved}`);
+        } else {
+          console.log("No compaction needed (below threshold)");
+        }
+        agent.close();
       }
       break;
     }
