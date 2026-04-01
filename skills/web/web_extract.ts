@@ -3,7 +3,7 @@ export default {
   name: "web_extract",
   description: "Extract content from URLs as markdown",
   async execute(args: Record<string, unknown>) {
-    const url = args.url || args.args || "";
+    const url = args.action || args.url || args.args || "";
     if (!url) return "No URL provided";
     try {
       const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
