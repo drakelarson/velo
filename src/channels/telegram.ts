@@ -284,51 +284,30 @@ Just chat with me normally for anything else!`);
       return;
     }
 
-    if (message === "/save") {
+    if (message === "/persona" || message.startsWith("/persona ")) {
+      const args = message.replace("/persona", "").trim();
+      const parts = args.split(/\s+/);
+      const action = parts[0]?.toLowerCase() || "list";
+      const rest = parts.slice(1).join(" ");
+
+      if (action === "save") {
+        const personaSkill = (agent as any).skills?.get("persona");
+        if (!personaSkill) {
+          await ctx.reply("❌ Persona skill not loaded.");
+          return;
+        }
+        const result = await personaSkill.execute({ action: "save" }, { brain: (agent as any).brain, agent });
+        await ctx.reply(result);
+        return;
+      }
+
+      // Pass to persona skill
       const personaSkill = (agent as any).skills?.get("persona");
       if (!personaSkill) {
         await ctx.reply("❌ Persona skill not loaded.");
         return;
       }
-      const result = await personaSkill.execute(
-        { action: "save" },
-        { brain: (agent as any).brain, agent }
-      );
-      await ctx.reply(result);
-
-      // Also persist persona name to config.toml
-      if (result.startsWith("✅")) {
-        try {
-          const configPath = path.join(os.homedir(), ".velo", "config.toml");
-          let content = fs.readFileSync(configPath, "utf-8");
-          const name = (agent as any).config?.agent?.persona || "default";
-          
-          // Update or add persona line under [agent] section
-          if (content.includes("persona = ")) {
-            content = content.replace(/persona\s*=\s*"[^"]*"/, `persona = "${name}"`);
-          } else {
-            content = content.replace(/\[agent\]/, `[agent]\npersona = "${name}"`);
-          }
-          fs.writeFileSync(configPath, content);
-          console.error(`[Telegram] Persisted persona = "${name}" to config`);
-        } catch (e) {
-          console.error("[Telegram] Failed to persist persona to config:", e);
-        }
-      }
-      return;
-    }
-
-    if (message === "/personality" || message.startsWith("/personality ")) {
-      const args = message.replace("/personality", "").trim();
-      const personaSkill = (agent as any).skills?.get("persona");
-      if (!personaSkill) {
-        await ctx.reply("❌ Persona skill not loaded. Please restart the bot.");
-        return;
-      }
-      const result = await personaSkill.execute(
-        { action: args ? "create " + args : "" },  // empty action → default case (full help)
-        { brain: (agent as any).brain, agent }
-      );
+      const result = await personaSkill.execute({ action: args || "list" }, { brain: (agent as any).brain, agent });
       await ctx.reply(result);
       return;
     }
@@ -365,7 +344,7 @@ Just chat with me normally for anything else!`);
       bot.telegram.setMyCommands([
         { command: "new", description: "Start a new conversation" },
         { command: "memory", description: "View agent memory (facts & sessions)" },
-        { command: "personality", description: "Create or manage agent personas" },
+        { command: "persona", description: "Create or manage agent personas" },
         { command: "clear", description: "Clear conversation history" },
         { command: "tools", description: "List available tools" },
         { command: "usage", description: "View token usage statistics" },
