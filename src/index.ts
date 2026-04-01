@@ -284,6 +284,8 @@ async function main() {
         const token = process.env[config.channels.telegram.token_env];
         if (token) {
           const telegram = createTelegramChannel(agent, token);
+          // Expose telegram bot on agent for notify skill
+          agent.telegramBot = telegram;
           servers.push(telegram.start());
         } else {
           console.error(`[Telegram] Missing token: ${config.channels.telegram.token_env}`);

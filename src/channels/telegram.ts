@@ -393,9 +393,7 @@ Just chat with me normally for anything else!`);
       console.log("[Telegram] Bot starting with long polling...");
       
       bot.telegram.setMyCommands([
-        { command: "new", description: "Start a new conversation" },
         { command: "memory", description: "View agent memory (facts & sessions)" },
-        { command: "persona", description: "Create or manage agent personas" },
         { command: "clear", description: "Clear conversation history" },
         { command: "tools", description: "List available tools" },
         { command: "usage", description: "View token usage statistics" },
@@ -403,13 +401,14 @@ Just chat with me normally for anything else!`);
         { command: "help", description: "Show help message" },
         { command: "status", description: "Check bot status" },
         { command: "voice", description: "Toggle voice mode or set voice" },
+        { command: "persona", description: "Manage agent personas" },
       ]).catch(err => console.error("[Telegram] Failed to set commands:", err.message));
       
       bot.launch({ dropPendingUpdates: false });
       
       bot.telegram.getMe().then((botInfo) => {
         console.log(`[Telegram] Connected as @${botInfo.username}`);
-        console.log("[Telegram] Commands registered: /memory, /clear, /tools, /recover, /help, /status, /voice");
+        console.log("[Telegram] Commands registered: /memory, /clear, /tools, /recover, /help, /status, /voice, /persona");
       }).catch(console.error);
       
       return bot;
@@ -417,6 +416,18 @@ Just chat with me normally for anything else!`);
     stop: () => {
       bot.stop("shutdown");
     },
+    // Expose sendDM for proactive notifications
+    sendDM: async (message: string, userId?: string) => {
+      // If userId provided, send directly to that user
+      if (userId) {
+        await bot.telegram.sendMessage(userId, message);
+        return;
+      }
+      // Otherwise this won't work without knowing who to reach
+      throw new Error("No userId provided for DM");
+    },
+    // Expose bot for sending to specific sessions
+    bot,
   };
 }
 

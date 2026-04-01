@@ -13,6 +13,8 @@ export class Agent {
   private sessionId: string = "default";
   private toolCallCounter: number = 0;
   private compactor: Compactor | null = null;
+  private lastCompactionTime: number = 0;
+  private readonly COMPACTION_COOLDOWN_MS = 10 * 60 * 1000; // 10 min cooldown
 
   // NEW: Session activity tracking for inactivity timeout
   private sessionActivity: Map<string, number> = new Map(); // sessionId -> lastActivity timestamp
@@ -150,14 +152,16 @@ When you need to use a tool, the system will handle the tool call automatically.
     this.memory.startSession(this.sessionId);
     this.memory.addUserPrompt(this.sessionId, input);
 
-    // Check for compaction before processing
+    // Check for compaction before processing (with 10-min cooldown)
     const allMessages = this.memory.getAllMessages(this.sessionId);
     if (this.compactor && allMessages && Array.isArray(allMessages) && allMessages.length > 0) {
       const msgCount = allMessages.length;
-      if (msgCount > 0 && this.compactor.shouldCompact(msgCount)) {
+      const now = Date.now();
+      if (msgCount > 0 && this.compactor.shouldCompact(msgCount) && (now - this.lastCompactionTime) > this.COMPACTION_COOLDOWN_MS) {
         try {
           const { compacted, result } = await this.compactor.compact(this.sessionId, allMessages);
           if (result) {
+            this.lastCompactionTime = now;
             // Apply compaction to memory
             this.memory.compactSession(
               this.sessionId,
