@@ -23,10 +23,12 @@ if pgrep -f "velo.*telegram" > /dev/null; then
     exit 0
 fi
 
+# Ensure velo home directory exists
+mkdir -p "$VELO_HOME"
+
 # Check for token - prioritize exported variable over file
 if [ -n "$TELEGRAM_TOKEN" ]; then
     # Save to env file for persistence
-    mkdir -p "$VELO_HOME"
     echo "TELEGRAM_TOKEN=$TELEGRAM_TOKEN" > "$ENV_FILE"
     echo "✓ Saved TELEGRAM_TOKEN to $ENV_FILE"
 elif [ -f "$ENV_FILE" ]; then
@@ -39,7 +41,7 @@ else
     echo "Set it one of these ways:"
     echo "  1. Export: export TELEGRAM_TOKEN=123456:ABC-DEF..."
     echo "  2. Create $ENV_FILE with:"
-    echo "     TELEGRAM_TOKEN=123456:ABC-DEF..."
+    echo "     echo 'TELEGRAM_TOKEN=123456:ABC-DEF...' > $ENV_FILE"
     echo ""
     echo "Get a token from @BotFather on Telegram"
     exit 1
@@ -56,14 +58,18 @@ echo "Starting Velo..."
 cd "$VELO_HOME"
 nohup velo telegram > /tmp/velo_bot.log 2>&1 &
 
-sleep 2
+sleep 3
 
 if pgrep -f "velo.*telegram" > /dev/null; then
     echo -e "${GREEN}✓ Velo started!${NC}"
     echo "  PID: $(pgrep -f 'velo.*telegram')"
-    echo "  Bot: $(grep 'Connected as' /tmp/velo_bot.log | head -1)"
+    BOT_INFO=$(grep 'Connected as' /tmp/velo_bot.log | head -1)
+    if [ -n "$BOT_INFO" ]; then
+        echo "  $BOT_INFO"
+    fi
     echo "  Log: /tmp/velo_bot.log"
 else
     echo "✗ Failed to start. Check /tmp/velo_bot.log"
+    cat /tmp/velo_bot.log | tail -20
     exit 1
 fi
