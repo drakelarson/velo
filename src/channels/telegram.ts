@@ -283,6 +283,35 @@ Just chat with me normally for anything else!`);
       return;
     }
 
+    if (message === "/save") {
+      const personaSkill = (agent as any).skills?.get("persona");
+      if (!personaSkill) {
+        await ctx.reply("❌ Persona skill not loaded.");
+        return;
+      }
+      const result = await personaSkill.execute(
+        { action: "save" },
+        { brain: (agent as any).brain, agent }
+      );
+      await ctx.reply(result);
+      return;
+    }
+
+    if (message === "/personality" || message.startsWith("/personality ")) {
+      const args = message.replace("/personality", "").trim();
+      const personaSkill = (agent as any).skills?.get("persona");
+      if (!personaSkill) {
+        await ctx.reply("❌ Persona skill not loaded. Please restart the bot.");
+        return;
+      }
+      const result = await personaSkill.execute(
+        { action: args ? "create " + args : "list" },
+        { brain: (agent as any).brain, agent }
+      );
+      await ctx.reply(result);
+      return;
+    }
+
     recovery.save(sessionId, message);
     await ctx.sendChatAction("typing");
 
@@ -315,6 +344,7 @@ Just chat with me normally for anything else!`);
       bot.telegram.setMyCommands([
         { command: "new", description: "Start a new conversation" },
         { command: "memory", description: "View agent memory (facts & sessions)" },
+        { command: "personality", description: "Create or manage agent personas" },
         { command: "clear", description: "Clear conversation history" },
         { command: "tools", description: "List available tools" },
         { command: "usage", description: "View token usage statistics" },

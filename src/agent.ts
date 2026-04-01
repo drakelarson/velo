@@ -2,6 +2,7 @@ import { Memory, ObservationType } from "./memory.ts";
 import { Brain, type ToolCall } from "./brain.ts";
 import { getModelPricing, calculateCost, formatCost } from "./pricing.ts";
 import { Compactor, type CompactorConfig } from "./compactor.ts";
+import { loadPersona, buildSystemPromptFromPersona, getActivePersonaName } from "./persona.ts";
 import type { Config, Message, Skill, Tool } from "./types.ts";
 
 export class Agent {
