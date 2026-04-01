@@ -22,8 +22,12 @@ export default {
     if (!fs.existsSync(pluginsDir)) fs.mkdirSync(pluginsDir, { recursive: true });
 
     try {
+      // Clawhub URL (clawhub.net/skills/slug)
+      if (input.includes("clawhub.net")) {
+        return installFromClawhub(input, pluginsDir);
+      }
       // GitHub URL
-      if (input.includes("github.com")) {
+      else if (input.includes("github.com")) {
         return installFromGitHub(input, pluginsDir);
       }
       // npm package
@@ -35,7 +39,7 @@ export default {
         return installFromLocal(input, pluginsDir, skillsDir);
       }
       else {
-        return `Could not find: ${input}\n\nProvide a GitHub URL, npm package name, or local path.`;
+        return `Could not find: ${input}\n\nProvide a GitHub URL, Clawhub URL, npm package name, or local path.`;
       }
     } catch (err: any) {
       return `Install failed: ${err.message}`;
@@ -67,6 +71,56 @@ function installFromGitHub(url: string, pluginsDir: string): string {
   }
 
   return `✅ Installed "${cleanName}" from GitHub\n\nLocation: ${destPath}\n\nRestart the bot to load the new plugin, or type "reload skills" to refresh.`;
+}
+
+function installFromClawhub(url: string, pluginsDir: string): string {
+  // Extract slug from clawhub.net/skills/slug or clawhub.net/skill/slug
+  const match = url.match(/clawhub\.net\/(?:skills?|skill)\/([^\/\?\#]+)/);
+  if (!match) return `Invalid Clawhub URL: ${url}\n\nFormat: https://clawhub.net/skills/skill-name`;
+
+  const slug = match[1];
+  const downloadUrl = `https://clawhub.net/api/v1/clawhub_skills/${slug}/download`;
+  const zipPath = `/tmp/clawhub-${slug}.zip`;
+  const extractPath = `/tmp/clawhub-${slug}`;
+
+  console.error(`[install] Downloading ${slug} from Clawhub...`);
+
+  // Download the zip
+  execSync(`curl -fsSL "${downloadUrl}" -o "${zipPath}"`, { stdio: "pipe" });
+
+  const destPath = path.join(pluginsDir, `velo-plugin-${slug}`);
+
+  if (fs.existsSync(destPath)) {
+    // Clean up old version
+    console.error(`[install] Removing existing ${slug}...`);
+    execSync(`rm -rf "${destPath}"`, { stdio: "pipe" });
+  }
+
+  // Extract zip
+  console.error(`[install] Extracting to ${destPath}...`);
+  execSync(`mkdir -p "${extractPath}" && unzip -o "${zipPath}" -d "${extractPath}"`, { stdio: "pipe" });
+
+  // Find the actual skill folder (zip often contains a parent directory)
+  const entries = fs.readdirSync(extractPath);
+  let skillDir = extractPath;
+  if (entries.length === 1 && fs.statSync(path.join(extractPath, entries[0])).isDirectory()) {
+    skillDir = path.join(extractPath, entries[0]);
+  }
+
+  // Move to plugins dir
+  execSync(`mv "${skillDir}" "${destPath}"`, { stdio: "pipe" });
+
+  // Clean up
+  execSync(`rm -rf "${zipPath}" "${extractPath}"`, { stdio: "pipe" });
+
+  // Run npm install if needed
+  const pkgJson = path.join(destPath, "package.json");
+  if (fs.existsSync(pkgJson)) {
+    console.error(`[install] Running npm install...`);
+    execSync("npm install", { cwd: destPath, stdio: "pipe" });
+  }
+
+  return `✅ Installed "${slug}" from Clawhub\n\nLocation: ${destPath}\n\nRestart the bot to load the new plugin.`;
 }
 
 function installFromNpm(pkgName: string, veloRoot: string): string {
