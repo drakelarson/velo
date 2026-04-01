@@ -151,9 +151,10 @@ When you need to use a tool, the system will handle the tool call automatically.
     this.memory.addUserPrompt(this.sessionId, input);
 
     // Check for compaction before processing
-    if (this.compactor) {
-      const allMessages = this.memory.getAllMessages(this.sessionId);
-      if (this.compactor.shouldCompact(allMessages.length)) {
+    const allMessages = this.memory.getAllMessages(this.sessionId);
+    if (this.compactor && allMessages) {
+      const msgCount = allMessages.length;
+      if (msgCount > 0 && this.compactor.shouldCompact(msgCount)) {
         const { compacted, result } = await this.compactor.compact(allMessages);
         if (result) {
           // Apply compaction to memory
