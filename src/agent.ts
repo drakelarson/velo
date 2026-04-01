@@ -152,17 +152,21 @@ When you need to use a tool, the system will handle the tool call automatically.
 
     // Check for compaction before processing
     const allMessages = this.memory.getAllMessages(this.sessionId);
-    if (this.compactor && allMessages) {
+    if (this.compactor && allMessages && Array.isArray(allMessages) && allMessages.length > 0) {
       const msgCount = allMessages.length;
       if (msgCount > 0 && this.compactor.shouldCompact(msgCount)) {
-        const { compacted, result } = await this.compactor.compact(allMessages);
-        if (result) {
-          // Apply compaction to memory
-          this.memory.compactSession(
-            this.sessionId,
-            this.config.compaction?.keepRecent || 10,
-            result.summary
-          );
+        try {
+          const { compacted, result } = await this.compactor.compact(this.sessionId, allMessages);
+          if (result) {
+            // Apply compaction to memory
+            this.memory.compactSession(
+              this.sessionId,
+              this.config.compaction?.keepRecent || 10,
+              result.summary
+            );
+          }
+        } catch (err) {
+          console.error("[Agent] Compaction failed:", err);
         }
       }
     }
