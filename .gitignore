@@ -31,3 +31,4 @@ Thumbs.db
 test-*.ts
 *.test.tswhisper-build/
 models/piper/*.onnx
+AGENTS.md
