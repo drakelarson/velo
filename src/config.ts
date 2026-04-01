@@ -3,7 +3,36 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Config } from "./types.ts";
 
+
+// Load env from multiple locations
+function loadEnvFile(): void {
+  const envLocations = [
+    path.join(getVeloHome(), "velo.env"),
+    path.join(process.cwd(), "velo.env"),
+    path.join(os.homedir(), ".velo", "velo.env"),
+  ];
+  
+  for (const envPath of envLocations) {
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, "utf-8");
+      for (const line of envContent.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) {
+          const [key, ...valueParts] = trimmed.split("=");
+          const value = valueParts.join("=");
+          if (key && value && !process.env[key]) {
+            process.env[key] = value;
+          }
+        }
+      }
+      console.log(`[Config] Loaded env from: ${envPath}`);
+      return;
+    }
+  }
+}
+
 export function loadConfig(configPath: string): Config {
+  loadEnvFile();
   const fullPath = path.resolve(configPath);
   
   // Ensure directory exists
@@ -12,21 +41,7 @@ export function loadConfig(configPath: string): Config {
     fs.mkdirSync(dir, { recursive: true });
   }
   
-  // Load .env file next to config
-  const envPath = fullPath.replace(/\.toml$/, ".env");
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, "utf-8");
-    for (const line of envContent.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith("#")) {
-        const [key, ...valueParts] = trimmed.split("=");
-        const value = valueParts.join("=");
-        if (key && value && !process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-  }
+  // Env already loaded from multiple locations
   
   if (!fs.existsSync(fullPath)) {
     // Create default config

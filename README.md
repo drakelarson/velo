@@ -1059,3 +1059,46 @@ launchctl load ~/Library/LaunchAgents/com.velo.agent.plist
 | Chat | `velo chat "Hello"` |
 | View logs | `tail -f /tmp/velo_agent.log` |
 
+
+## One-Command Start
+
+```bash
+# Set your token (get from @BotFather)
+export TELEGRAM_TOKEN=123456:ABC-DEF...
+
+# Start Velo
+curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/start.sh | bash
+```
+
+That's it! Velo will:
+- Install itself if needed
+- Create config in `~/.velo/`
+- Start the bot
+- Show you the bot username
+
+**Or if already installed:**
+```bash
+velo telegram
+```
+
+## Troubleshooting
+
+**Bot not responding?**
+```bash
+# Check if running
+ps aux | grep velo
+
+# Check logs
+tail -50 /tmp/velo_bot.log
+
+# Restart
+pkill -f "velo.*telegram"
+velo telegram
+```
+
+**Token not found?**
+```bash
+# Create ~/.velo/velo.env
+echo "TELEGRAM_TOKEN=123456:ABC-DEF..." > ~/.velo/velo.env
+```
+
