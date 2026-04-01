@@ -238,8 +238,28 @@ When you need to use a tool, the system will handle the tool call automatically.
       );
     }
 
+    // Self-correct: if all tool calls failed, try to recover
+    const allFailed = toolResults.length > 0 && toolResults.every((r: any) => {
+      const lower = r.result.toLowerCase();
+      return lower.includes("error") || lower.includes("failed") || lower.includes("unknown") || lower.includes("not found") || lower.includes("no url") || lower.includes("empty");
+    });
+
+    let finalContent = this.brain.stripToolCalls(result.content);
+    if (allFailed && finalContent.length < 50) {
+      // All tools failed AND model gave a generic response - inject guidance
+      const failedTools = toolResults.map((r: any) => r.name + ": " + r.result.slice(0, 80)).join("\n");
+      const guidanceMsg = "IMPORTANT: Your previous response was too brief. You had " + toolResults.length + " tool call(s) that failed. Inject more detail and a recovery plan. Do NOT just say \"I can't\" or give up. Suggest alternatives. Be honest but keep the persona. Failed tools:\n" + failedTools;
+      const guidancePrompt = [
+        ...messages,
+        { role: "assistant" as const, content: finalContent },
+        { role: "user" as const, content: guidanceMsg },
+      ];
+      const recovery = await this.brain.think(guidancePrompt, systemPrompt, undefined);
+      finalContent = this.brain.stripToolCalls(recovery.content);
+    }
+
     // Strip any remaining XML tool calls from content
-    const cleanContent = this.brain.stripToolCalls(result.content);
+    const cleanContent = finalContent;
 
     // Track token usage if available
     if (result.usage) {
