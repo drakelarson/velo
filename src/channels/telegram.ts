@@ -162,7 +162,6 @@ export function createTelegramChannel(agent: any, token: string) {
     const sessionId = `telegram:${userId}`;
     agent.setSession(sessionId);
 
-    await ctx.reply("🖼️ Analyzing image...");
     await ctx.sendChatAction("typing");
 
     try {
