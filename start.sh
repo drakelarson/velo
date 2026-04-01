@@ -23,9 +23,18 @@ if pgrep -f "velo.*telegram" > /dev/null; then
     exit 0
 fi
 
-# Check for token
-if [ -z "$TELEGRAM_TOKEN" ] && [ ! -f "$ENV_FILE" ]; then
-    echo " TELEGRAM_TOKEN not found!"
+# Check for token - prioritize exported variable over file
+if [ -n "$TELEGRAM_TOKEN" ]; then
+    # Save to env file for persistence
+    mkdir -p "$VELO_HOME"
+    echo "TELEGRAM_TOKEN=$TELEGRAM_TOKEN" > "$ENV_FILE"
+    echo "✓ Saved TELEGRAM_TOKEN to $ENV_FILE"
+elif [ -f "$ENV_FILE" ]; then
+    # Load from existing env file
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
+    echo "✓ Loaded TELEGRAM_TOKEN from $ENV_FILE"
+else
+    echo "✗ TELEGRAM_TOKEN not found!"
     echo ""
     echo "Set it one of these ways:"
     echo "  1. Export: export TELEGRAM_TOKEN=123456:ABC-DEF..."
@@ -39,7 +48,7 @@ fi
 # Ensure velo binary exists
 if ! command -v velo &> /dev/null; then
     echo "Installing velo..."
-    curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
 fi
 
 # Start the bot
