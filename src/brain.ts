@@ -99,6 +99,53 @@ export class Brain {
     return { content, toolCalls, usage };
   }
 
+  async thinkWithModel(
+    messages: Message[],
+    systemPrompt: string,
+    modelOverride: string,
+    tools?: Tool[]
+  ): Promise<ThinkResult> {
+    const fullMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content })),
+    ];
+
+    const response = await this.client.chat.completions.create({
+      model: modelOverride,
+      messages: fullMessages,
+      tools: tools?.length ? this.formatTools(tools) : undefined,
+      tool_choice: tools?.length ? "auto" : undefined,
+    });
+
+    const choice = response.choices[0];
+    const content = choice.message.content || "";
+    const toolCalls: ToolCall[] = [];
+
+    if (choice.message.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(jsonrepair(tc.function.arguments));
+        } catch {
+          args = {};
+        }
+        toolCalls.push({
+          id: tc.id,
+          name: tc.function.name,
+          arguments: args,
+        });
+      }
+    }
+
+    const usage = response.usage ? {
+      promptTokens: response.usage.prompt_tokens,
+      completionTokens: response.usage.completion_tokens,
+      totalTokens: response.usage.total_tokens,
+    } : undefined;
+
+    return { content, toolCalls, usage };
+  }
+
   async thinkWithToolResults(
     messages: Message[],
     systemPrompt: string,

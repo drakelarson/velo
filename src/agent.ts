@@ -61,15 +61,13 @@ export class Agent {
       .map(([k, v]) => `- ${k}: ${v}`)
       .join("\n");
 
-    const skillList = Array.from(this.skills.values())
-      .map((s) => s.name)
-      .join(", ");
+    const skillCount = this.skills.size;
 
     // Get context index for progressive disclosure
-    const contextIndex = this.memory.generateContextIndex(30);
+    const contextIndex = this.memory.generateContextIndex(10);
     
     // Get recent session summaries for cross-session context
-    const sessionSummaries = this.memory.getRecentSessionSummaries(5);
+    const sessionSummaries = this.memory.getRecentSessionSummaries(3);
     const summaryStr = sessionSummaries
       .filter(s => s.learned || s.user_goal || s.next_steps)
       .map(s => {
@@ -110,6 +108,17 @@ ${persona.system_hint ? `\n**Guidance:** ${persona.system_hint}` : ""}
       personaSection = `\nYou are ${this.config.agent.name}. ${this.config.agent.personality || "Helpful, concise AI assistant."}`;
     }
 
+    // Core categories - skills grouped by function
+    const categories = [
+      "Memory: mem-search, mem-get, observe",
+      "Web: web_search, web_extract, github_search, reddit_fetch, x_fetch, yt_fetch, tiktok_fetch",
+      "Files: file_read, file_write, grep, find",
+      "Media: transcribe, tts, image_gen, edit_image",
+      "Browser: browser",
+      "Productivity: calculator, reminder, todo",
+      "System: run_command, cpu_info",
+    ].join("\n");
+
     return `You are ${identityName}.${personaSection}
 
 Known facts about the user:
@@ -122,7 +131,8 @@ ${summaryStr || "No previous session summaries yet."}
 ${contextIndex}
 
 ## Available Tools
-${this.skills.size} tools: ${skillList}
+${this.skills.size} tools
+${categories}
 
 When you need to use a tool, the system will handle the tool call automatically. Respond naturally.`;
   }
@@ -513,9 +523,10 @@ If nothing significant happened, respond with: SKIP`;
 
     try {
       // Use brain to analyze
-      const result = await this.brain.think(
+      const result = await this.brain.thinkWithModel(
         [{ role: "user", content: reflectionPrompt }],
-        "You are a conversation analyst. Extract structured learnings from conversations.",
+        "You are a concise conversation analyst. Return ONLY the analysis in the exact format requested. No extra text.",
+        "ollama:qwen2.5:0.5b",
         undefined
       );
 
