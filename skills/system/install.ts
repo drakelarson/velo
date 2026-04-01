@@ -76,10 +76,21 @@ function installFromNpm(pkgName: string, veloRoot: string): string {
     return `Package "${pkgName}" already installed.\nRestart the bot to use it.`;
   }
 
-  console.error(`[install] Installing npm package: ${pkgName}...`);
-  execSync(`npm install ${pkgName}`, { cwd: veloRoot, stdio: "pipe" });
-
-  return `✅ Installed "${pkgName}" from npm\n\nLocation: ${destPath}\n\nRestart the bot to load the new plugin.`;
+  try {
+    console.error(`[install] Installing npm package: ${pkgName}...`);
+    execSync(`npm install ${pkgName}`, { cwd: veloRoot, stdio: "pipe" });
+    return `✅ Installed "${pkgName}" from npm\n\nLocation: ${destPath}\n\nRestart the bot to load the new plugin.`;
+  } catch (npmErr: any) {
+    // npm failed — try GitHub as fallback (common pattern: github.com/org/velo-plugin-name)
+    const githubUrl = `https://github.com/${pkgName.replace(/^@/, "")}`;
+    try {
+      console.error(`[install] npm failed (${npmErr.message}), trying GitHub: ${githubUrl}`);
+      execSync(`git clone ${githubUrl} "${path.join(veloRoot, "plugins", `velo-plugin-${pkgName.replace("@", "")}`)}"`, { cwd: veloRoot, stdio: "pipe" });
+      return `✅ Installed "${pkgName}" from GitHub (npm was unavailable)\n\nRestart the bot to load the new plugin.`;
+    } catch {
+      return `Install failed for "${pkgName}":\n\n1. npm: ${npmErr.message}\n2. GitHub: not found or clone failed\n\nTry providing a direct GitHub URL instead:\n  install https://github.com/user/${pkgName}`;
+    }
+  }
 }
 
 function installFromLocal(sourcePath: string, pluginsDir: string, skillsDir: string): string {
