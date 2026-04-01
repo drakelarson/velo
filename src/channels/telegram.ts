@@ -3,6 +3,7 @@ import { CrashRecovery } from "../recovery.ts";
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "bun";
+import * as os from "os";
 
 // Track voice mode and preferred voice per user
 const voiceModeUsers = new Map<string, { enabled: boolean; voice: string }>();
@@ -294,6 +295,26 @@ Just chat with me normally for anything else!`);
         { brain: (agent as any).brain, agent }
       );
       await ctx.reply(result);
+
+      // Also persist persona name to config.toml
+      if (result.startsWith("✅")) {
+        try {
+          const configPath = path.join(os.homedir(), ".velo", "config.toml");
+          let content = fs.readFileSync(configPath, "utf-8");
+          const name = (agent as any).config?.agent?.persona || "default";
+          
+          // Update or add persona line under [agent] section
+          if (content.includes("persona = ")) {
+            content = content.replace(/persona\s*=\s*"[^"]*"/, `persona = "${name}"`);
+          } else {
+            content = content.replace(/\[agent\]/, `[agent]\npersona = "${name}"`);
+          }
+          fs.writeFileSync(configPath, content);
+          console.error(`[Telegram] Persisted persona = "${name}" to config`);
+        } catch (e) {
+          console.error("[Telegram] Failed to persist persona to config:", e);
+        }
+      }
       return;
     }
 
@@ -305,7 +326,7 @@ Just chat with me normally for anything else!`);
         return;
       }
       const result = await personaSkill.execute(
-        { action: args ? "create " + args : "list" },
+        { action: args ? "create " + args : "" },  // empty action → default case (full help)
         { brain: (agent as any).brain, agent }
       );
       await ctx.reply(result);

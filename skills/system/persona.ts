@@ -36,12 +36,12 @@ export default {
           const personas = listPersonas();
           const active = getActivePersonaName(context?.agent?.config || {});
           if (personas.length === 0) {
-            return `📋 No personas saved yet. Use 'persona create' to make one!`;
+            return `📋 No personas saved yet. Use /persona create to make one!`;
           }
           const list = personas
             .map((p) => (p === active ? `• ${p} (active)` : `  ${p}`))
             .join("\n");
-          return `📋 Saved Personas:\n\n${list}\n\nUse 'persona set <name>' to switch.`;
+          return `📋 Saved Personas:\n\n${list}\n\nUse /persona set <name> to switch.`;
         }
 
         case "create":
@@ -76,7 +76,7 @@ Just describe what you want and I'll generate a persona for you.`;
         case "save": {
           const session = creationSessions.get("telegram");
           if (!session?.persona) {
-            return "❌ No persona in progress to save. Use 'persona create <description>' first.";
+            return "❌ No persona in progress to save. Use /persona create <description> first.";
           }
           const name = session.persona.name;
           savePersona(name, session.persona);
@@ -94,11 +94,11 @@ Just describe what you want and I'll generate a persona for you.`;
         case "activate": {
           if (!rest) {
             const active = getActivePersonaName(context?.agent?.config || {});
-            return `Current persona: ${active}. Use 'persona set <name>' to switch.`;
+            return `Current persona: ${active}. Use /persona set <name> to switch.`;
           }
           const persona = loadPersona(rest);
           if (!persona) {
-            return `❌ Persona "${rest}" not found. Use 'persona list' to see saved personas.`;
+            return `❌ Persona "${rest}" not found. Use /persona list to see saved personas.`;
           }
           if (context?.agent?.config) {
             context.agent.config.agent.persona = persona.name;
@@ -108,7 +108,7 @@ Just describe what you want and I'll generate a persona for you.`;
 
         case "preview": {
           if (!rest) {
-            return "Usage: persona preview <name>";
+            return "Usage: /persona preview <name>";
           }
           const persona = loadPersona(rest);
           if (!persona) {
@@ -131,7 +131,7 @@ ${persona.forbidden.map((f) => `  - ${f}`).join("\n")}`;
         case "delete":
         case "remove": {
           if (!rest) {
-            return "Usage: persona delete <name>";
+            return "Usage: /persona delete <name>";
           }
           const deleted = deletePersona(rest);
           if (deleted) {
@@ -180,16 +180,15 @@ What would you like to change? (e.g. "make it more formal", "add a catchphrase",
 Active: ${active}
 
 Commands:
-  persona list              - Show all saved personas
-  persona create <desc>     - Create new persona (e.g. "witty British mentor")
-  persona set <name>        - Switch to a different persona
-  persona preview <name>    - Preview a persona's details
-  persona edit <feedback>   - Refine the current persona
-  persona delete <name>     - Delete a persona
+  /persona list            - Show all saved personas
+  /persona create <desc>  - Create new (e.g. "witty British mentor")
+  /persona set <name>     - Switch to a different persona
+  /persona preview <name>  - Preview a persona's details
+  /persona edit <feedback> - Refine the current persona
+  /persona delete <name>  - Delete a persona
 
 Example:
-  persona create a sarcastic pirate who roams the digital seas
-  persona create friendly coding tutor who explains with car metaphors`;
+  /persona create a sarcastic pirate who roams the digital seas`;
         }
       }
     } catch (err: any) {

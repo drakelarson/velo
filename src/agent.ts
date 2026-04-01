@@ -80,7 +80,33 @@ export class Agent {
       })
       .join("\n");
 
-    return `You are ${this.config.agent.name}. ${this.config.agent.personality}
+    // Load active persona
+    const activePersonaName = this.config.agent?.persona || "default";
+    const persona = loadPersona(activePersonaName);
+
+    let personaSection = "";
+    if (persona) {
+      personaSection = `
+## Your Personality
+
+**Name:** ${persona.name}
+**Tone:** ${persona.tone}
+**Traits:** ${persona.traits.join(", ")}
+
+**Response Style:** ${persona.response_style}
+
+**You commonly say things like:**
+${persona.example_phrases.map(p => `- "${p}"`).join("\n")}
+
+**Never:**
+${persona.forbidden.map(f => `- ${f}`).join("\n")}
+${persona.system_hint ? `\n**Guidance:** ${persona.system_hint}` : ""}
+`;
+    } else {
+      personaSection = `\nYou are ${this.config.agent.name}. ${this.config.agent.personality || "Helpful, concise AI assistant."}`;
+    }
+
+    return `You are ${this.config.agent.name}.${personaSection}
 
 Known facts about the user:
 ${factStr || "No specific facts known yet."}
