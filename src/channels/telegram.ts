@@ -153,6 +153,58 @@ export function createTelegramChannel(agent: any, token: string) {
     }
   });
 
+  // Handle photo messages - auto-describe with vision
+  bot.on("photo", async (ctx: Context) => {
+    const photo = ctx.message?.photo;
+    if (!photo || photo.length === 0) return;
+
+    const userId = ctx.from?.id?.toString() || "unknown";
+    const sessionId = `telegram:${userId}`;
+    agent.setSession(sessionId);
+
+    await ctx.reply("🖼️ Analyzing image...");
+    await ctx.sendChatAction("typing");
+
+    try {
+      // Get largest photo
+      const file = photo[photo.length - 1];
+      const fileInfo = await ctx.telegram.getFile(file.file_id);
+      const fileUrl = await ctx.telegram.getFileLink(fileInfo);
+
+      // Get vision skill
+      const visionSkill = (agent as any).skills?.get("vision_preprocessor");
+      if (!visionSkill) {
+        await ctx.reply("❌ Vision skill not available.");
+        return;
+      }
+
+      // Describe the image
+      const description = await visionSkill.execute({ action: fileUrl.toString() });
+
+      if (description.startsWith("vision_preprocessor failed") || description.startsWith("Failed to download")) {
+        await ctx.reply(`❌ ${description}`);
+        return;
+      }
+
+      // Prepend description to message and process
+      const userMessage = `[Image description: ${description}] What do you see in this image?`;
+
+      recovery.save(sessionId, userMessage);
+      await ctx.sendChatAction("typing");
+
+      const response = await agent.process(userMessage);
+      recovery.markClean(sessionId);
+      await sendResponse(ctx, response, userId, agent);
+
+    } catch (err: any) {
+      console.error("[Telegram] Photo error:", err?.message);
+      recovery.markCrashed(sessionId);
+      try {
+        await ctx.reply("❌ Failed to process image.");
+      } catch {}
+    }
+  });
+
   bot.on("text", async (ctx: Context) => {
     const message = ctx.message?.text;
     if (!message) return;
