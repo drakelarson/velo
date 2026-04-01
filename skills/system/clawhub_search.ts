@@ -5,7 +5,7 @@ export default {
   description: "Search ClawHub (clawhub.ai) for skills and get install URLs. Usage: clawhub_search <query>\n\nClawHub is the skill marketplace for OpenClaw agents. This searches their registry to find skills, then extracts the actual source (GitHub or npm) so you can install them with the 'install' skill — no ClawHub CLI needed.",
 
   async execute(args: Record<string, unknown>): Promise<string> {
-    const query = String(args.action || args.args || "").trim();
+    const query = String(args.query || args.args || args.action || "").trim();
     if (!query) {
       return `Usage: clawhub_search <query>\n\nExample: clawhub_search github integration`;
     }

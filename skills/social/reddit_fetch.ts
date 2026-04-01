@@ -5,7 +5,7 @@ export default {
   description: "Fetch Reddit post or thread. Usage: reddit_fetch <url_or_permalink>",
   
   async execute(args: Record<string, unknown>): Promise<string> {
-    let input = String(args.action || args.args || "").trim();
+    let input = String(args.query || args.args || args.action || "").trim();
     if (!input) return "Usage: reddit_fetch <url_or_permalink>\n\nExample: reddit_fetch https://www.reddit.com/r/technology/comments/abc123/some_post";
 
     // Normalize URL
