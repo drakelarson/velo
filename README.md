@@ -886,7 +886,7 @@ Velo runs on **any** Linux, macOS, or Windows machine. No dependencies on Zo or 
 
 ```bash
 # Download binary
-curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
 
 # Or build from source
 git clone https://github.com/drakelarson/velo.git
@@ -917,7 +917,7 @@ Deploy to any VPS or cloud:
 ssh user@your-server
 
 # Install
-curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
 
 # Set API key
 echo "NVIDIA_API_KEY=your-key" >> ~/.velo/velo.env
@@ -1052,7 +1052,7 @@ launchctl load ~/Library/LaunchAgents/com.velo.agent.plist
 
 | Task | Command |
 |------|---------|
-| Install | `curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/install.sh \| bash` |
+| Install | `curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh \| bash` |
 | Start Telegram | `velo telegram YOUR_TOKEN` |
 | Start WhatsApp | `velo whatsapp login` |
 | Start Dashboard | `velo dashboard start` |
@@ -1067,7 +1067,7 @@ launchctl load ~/Library/LaunchAgents/com.velo.agent.plist
 export TELEGRAM_TOKEN=123456:ABC-DEF...
 
 # Start Velo
-curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/start.sh | bash
+curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/start.sh | bash
 ```
 
 That's it! Velo will:
