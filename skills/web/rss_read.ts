@@ -3,7 +3,7 @@ export default {
   name: "rss_read",
   description: "Read RSS/Atom feed",
   async execute(args: Record<string, unknown>) {
-    const url = args.url || args.args || "";
+    const url = args.action || args.url || args.args || "";
     if (!url) return "No feed URL";
     try {
       const res = await fetch(url);

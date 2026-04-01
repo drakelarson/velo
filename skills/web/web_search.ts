@@ -5,7 +5,7 @@ export default {
   name: "web_search",
   description: "Search the web using Webserp (multi-engine: Google, DuckDuckGo, Brave, Yahoo)",
   async execute(args: Record<string, unknown>) {
-    const query = args.query || args.args || "";
+    const query = args.action || args.query || args.args || "";
     if (!query) return "No search query provided";
     
     try {

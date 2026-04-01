@@ -3,7 +3,7 @@ export default {
   name: "sitemap_parse",
   description: "Parse sitemap.xml URLs",
   async execute(args: Record<string, unknown>) {
-    const url = args.url || args.args || "";
+    const url = args.action || args.url || args.args || "";
     if (!url) return "No sitemap URL";
     try {
       const res = await fetch(url);

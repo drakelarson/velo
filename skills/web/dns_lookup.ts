@@ -4,7 +4,7 @@ export default {
   name: "dns_lookup",
   description: "Perform DNS lookups",
   async execute(args: Record<string, unknown>) {
-    const domain = args.domain || args.args || "";
+    const domain = args.action || args.domain || args.args || "";
     const type = args.type || "A";
     if (!domain) return "No domain provided";
     try {

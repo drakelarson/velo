@@ -3,7 +3,7 @@ export default {
   name: "ip_lookup",
   description: "Lookup IP address information",
   async execute(args: Record<string, unknown>) {
-    const ip = args.ip || args.args || "";
+    const ip = args.action || args.ip || args.args || "";
     try {
       const res = await fetch(`https://ip-api.com/json/${ip}`);
       const data = await res.json();
