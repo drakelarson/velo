@@ -18,7 +18,7 @@ export default {
       
       const data = await res.json() as any;
       
-      if (data.error || data.allSameType) {
+      if (data.error || data.status === 404 || !data.text) {
         return `Tweet not found or unavailable`;
       }
       
