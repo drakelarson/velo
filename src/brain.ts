@@ -105,6 +105,9 @@ export class Brain {
     modelOverride: string,
     tools?: Tool[]
   ): Promise<ThinkResult> {
+    const startTime = Date.now();
+    console.error(`[Brain] Model: ${modelOverride} (${tools?.length || 0} tools), thinking...`);
+
     const fullMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
       ...messages.map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content })),
@@ -116,6 +119,9 @@ export class Brain {
       tools: tools?.length ? this.formatTools(tools) : undefined,
       tool_choice: tools?.length ? "auto" : undefined,
     });
+
+    const elapsed = Date.now() - startTime;
+    console.error(`[Brain] ✓ ${modelOverride} done in ${elapsed}ms`);
 
     const choice = response.choices[0];
     const content = choice.message.content || "";
