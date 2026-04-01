@@ -85,7 +85,9 @@ export class Agent {
     const persona = loadPersona(activePersonaName);
 
     let personaSection = "";
+    let identityName = this.config.agent.name;
     if (persona) {
+      identityName = persona.name;
       personaSection = `
 ## Your Personality
 
@@ -106,7 +108,7 @@ ${persona.system_hint ? `\n**Guidance:** ${persona.system_hint}` : ""}
       personaSection = `\nYou are ${this.config.agent.name}. ${this.config.agent.personality || "Helpful, concise AI assistant."}`;
     }
 
-    return `You are ${this.config.agent.name}.${personaSection}
+    return `You are ${identityName}.${personaSection}
 
 Known facts about the user:
 ${factStr || "No specific facts known yet."}
