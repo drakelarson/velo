@@ -984,3 +984,78 @@ docker run -d \
 | Docker Image | 🚧 In Progress |
 | Windows Support | 🚧 In Progress |
 
+
+## Production Deployment
+
+For 24/7 operation without manual intervention:
+
+### Linux (systemd)
+```bash
+# Create systemd service
+sudo cat > /etc/systemd/system/velo.service << 'SERVICE'
+[Unit]
+Description=Velo AI Agent
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/.velo
+Environment="TELEGRAM_TOKEN=YOUR_TOKEN"
+ExecStart=/usr/local/bin/velo telegram YOUR_TOKEN
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+sudo systemctl daemon-reload
+sudo systemctl enable velo
+sudo systemctl start velo
+```
+
+### macOS (launchd)
+```bash
+# Create launch agent
+cat > ~/Library/LaunchAgents/com.velo.agent.plist << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.velo.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/velo</string>
+        <string>telegram</string>
+        <string>YOUR_TOKEN</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+
+launchctl load ~/Library/LaunchAgents/com.velo.agent.plist
+```
+
+### Zo Computer (this platform)
+```bash
+# Register as Zo user service (auto-starts on boot)
+# See: https://larsondrake.zo.computer/?t=sites&s=services
+```
+
+## Quick Start Summary
+
+| Task | Command |
+|------|---------|
+| Install | `curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/main/install.sh \| bash` |
+| Start Telegram | `velo telegram YOUR_TOKEN` |
+| Start WhatsApp | `velo whatsapp login` |
+| Start Dashboard | `velo dashboard start` |
+| Chat | `velo chat "Hello"` |
+| View logs | `tail -f /tmp/velo_agent.log` |
+
