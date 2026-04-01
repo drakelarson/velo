@@ -188,7 +188,7 @@ When you need to use a tool, the system will handle the tool call automatically.
 
     // Handle tool calls (loop until no more tool calls)
     let iterations = 0;
-    const maxIterations = 5;
+    const maxIterations = 3;
     const toolResults: Array<{ toolCallId: string; name: string; result: string }> = [];
 
     console.error("[Agent] toolCalls:", result.toolCalls.map((t: any) => t.name));
