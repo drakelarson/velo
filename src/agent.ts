@@ -1,4 +1,4 @@
-import { Memory } from "./memory.ts";
+import { Memory, ObservationType } from "./memory.ts";
 import { Brain, type ToolCall } from "./brain.ts";
 import { getModelPricing, calculateCost, formatCost } from "./pricing.ts";
 import { Compactor, type CompactorConfig } from "./compactor.ts";
@@ -13,6 +13,12 @@ export class Agent {
   private toolCallCounter: number = 0;
   private compactor: Compactor | null = null;
 
+  // NEW: Session activity tracking for inactivity timeout
+  private sessionActivity: Map<string, number> = new Map(); // sessionId -> lastActivity timestamp
+  private inactivityCheckInterval: Timer | null = null;
+  private readonly INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
+  private readonly CHECK_INTERVAL_MS = 30 * 1000; // Check every 30 seconds
+
   constructor(config: Config) {
     this.config = config;
     this.brain = new Brain(config.agent.model, config.providers);
@@ -23,6 +29,9 @@ export class Agent {
       const providerConfig = this.getProviderConfig(config.compaction.model);
       this.compactor = new Compactor(config.compaction, providerConfig);
     }
+
+    // Start inactivity checker
+    this.startInactivityChecker();
   }
 
   getProviderConfig(model: string): { baseUrl?: string; apiKey?: string } {
@@ -50,7 +59,24 @@ export class Agent {
       .join("\n");
 
     const skillList = Array.from(this.skills.values())
-      .map((s) => `- ${s.name}: ${s.description}`)
+      .map((s) => s.name)
+      .join(", ");
+
+    // Get context index for progressive disclosure
+    const contextIndex = this.memory.generateContextIndex(30);
+    
+    // Get recent session summaries for cross-session context
+    const sessionSummaries = this.memory.getRecentSessionSummaries(5);
+    const summaryStr = sessionSummaries
+      .filter(s => s.learned || s.user_goal || s.next_steps)
+      .map(s => {
+        let parts = [`[${s.session_id}]`];
+        if (s.user_goal) parts.push(`Goal: ${s.user_goal}`);
+        if (s.completed) parts.push(`Done: ${s.completed}`);
+        if (s.learned) parts.push(`Learned: ${s.learned}`);
+        if (s.next_steps) parts.push(`Next: ${s.next_steps}`);
+        return parts.join(" | ");
+      })
       .join("\n");
 
     return `You are ${this.config.agent.name}. ${this.config.agent.personality}
@@ -58,42 +84,16 @@ export class Agent {
 Known facts about the user:
 ${factStr || "No specific facts known yet."}
 
-## Your Capabilities
+## Recent Session Summaries (Cross-Session Context)
+${summaryStr || "No previous session summaries yet."}
 
-You have access to ${this.skills.size} tools. Key capabilities include:
+## Recent Observations (Cross-Session Memory)
+${contextIndex}
 
-**MCP (Model Context Protocol):**
-- mcp_connect: Connect to external MCP servers for additional tools
-- mcp_tools: List available MCP tools
-You CAN connect to MCP servers to extend your capabilities!
+## Available Tools
+${this.skills.size} tools: ${skillList}
 
-**Subagent Spawning:**
-- subagent_spawn: Spawn independent subagents to work in parallel
-- subagent_list: List active subagents
-- subagent_status: Check subagent status
-You CAN spawn subagents for parallel task execution!
-
-**Multi-Agent Orchestration:**
-- orchestrate: Orchestrate multiple specialized agents (Coordinator, Researcher, Writer, Coder, Reviewer, Analyst)
-- orchestrate_auto: Let AI choose the best workflow automatically
-You CAN orchestrate complex tasks with multiple agents!
-
-**Web & Browser:**
-- browser: Full browser control (open, click, fill, screenshot, read)
-- web_search: Search the web using Webserp
-
-**Files & Data:**
-- file_read, file_write, file_list, etc.
-- csv_query, json_query, sqlite_query
-
-**System:**
-- run_command: Execute shell commands
-- cpu_info, memory_info, disk_info
-
-All available tools:
-${skillList || "No tools available."}
-
-When you need to use a tool, the system will handle the tool call automatically. Respond naturally and mention what tool you'll use.`;
+When you need to use a tool, the system will handle the tool call automatically. Respond naturally.`;
   }
 
   private getTools(): Tool[] {
@@ -114,6 +114,13 @@ When you need to use a tool, the system will handle the tool call automatically.
   }
 
   async process(input: string): Promise<string> {
+    // NEW: Track session activity
+    this.trackActivity(this.sessionId);
+
+    // NEW: Start session tracking and record user prompt
+    this.memory.startSession(this.sessionId);
+    this.memory.addUserPrompt(this.sessionId, input);
+
     // Check for compaction before processing
     if (this.compactor) {
       const allMessages = this.memory.getAllMessages(this.sessionId);
@@ -324,10 +331,254 @@ When you need to use a tool, the system will handle the tool call automatically.
     return this.memory.getCompactionHistory(sessionId);
   }
 
+  // ===========================================
+  // NEW: OBSERVATION METHODS
+  // ===========================================
+
+  /**
+   * Record an observation (structured learning) from this session
+   */
+  observe(
+    type: "decision" | "bugfix" | "feature" | "discovery" | "gotcha" | "how-it-works" | "trade-off" | "change",
+    title: string,
+    narrative: string,
+    facts: string[] = [],
+    concepts: string[] = [],
+    options?: { files_referenced?: string; tool_name?: string }
+  ): number {
+    return this.memory.addObservation(
+      this.sessionId,
+      type,
+      title,
+      narrative,
+      facts,
+      concepts,
+      { ...options, channel: "chat" }
+    );
+  }
+
+  /**
+   * Get recent observations across all sessions
+   */
+  getRecentObservations(limit: number = 20): string {
+    const observations = this.memory.getRecentObservations(limit);
+    if (observations.length === 0) {
+      return "📋 No observations recorded yet.";
+    }
+
+    let output = `📋 RECENT OBSERVATIONS (${observations.length})\n\n`;
+    for (const obs of observations) {
+      const icon = { 
+        decision: "🟤", bugfix: "🟡", feature: "🟢", discovery: "🟣",
+        gotcha: "🔴", "how-it-works": "🔵", "trade-off": "⚖️", change: "📌"
+      }[obs.type] || "📌";
+      const date = new Date(obs.created_at * 1000).toLocaleDateString();
+      output += `${icon} #${obs.id} | ${obs.title} (${date})\n`;
+    }
+    output += `\n💡 Use 'mem-get <id>' for full details.`;
+    return output;
+  }
+
+  /**
+   * Get enhanced memory status including observations
+   */
+  getEnhancedMemoryStatus(): string {
+    const stats = this.memory.getMemoryStats();
+    const facts = this.memory.getAllFacts();
+
+    let output = "═════════ VELO MEMORY STATUS ═════════\n\n";
+
+    // Observations
+    output += `📋 OBSERVATIONS: ${stats.totalObservations}\n`;
+    if (Object.keys(stats.typesBreakdown).length > 0) {
+      const icons: Record<string, string> = {
+        decision: "🟤", bugfix: "🟡", feature: "🟢", discovery: "🟣",
+        gotcha: "🔴", "how-it-works": "🔵", "trade-off": "⚖️", change: "📌"
+      };
+      for (const [type, count] of Object.entries(stats.typesBreakdown)) {
+        output += `  ${icons[type] || "📌"} ${type}: ${count}\n`;
+      }
+    }
+
+    // Sessions
+    output += `\n💬 SESSIONS: ${stats.totalSessions}\n`;
+    output += `📝 USER PROMPTS: ${stats.totalPrompts}\n`;
+
+    // Facts
+    output += `\n📌 FACTS: ${Object.keys(facts).length}\n`;
+
+    // Storage
+    const sizeKB = Math.round(stats.storageSize / 1024);
+    output += `\n💾 STORAGE: ${sizeKB} KB\n`;
+
+    output += "\n═══════════════════════════════";
+    return output;
+  }
+
+  // ===========================================
+  // NEW: SESSION REFLECTION (Inactivity Timeout)
+  // ===========================================
+
+  /**
+   * Reflect on a session and generate an observation
+   * Called after 3 minutes of inactivity
+   */
+  async reflect(sessionId: string): Promise<string | null> {
+    const messages = this.memory.getAllMessages(sessionId);
+    
+    // Skip if session was too short
+    if (messages.length < 2) {
+      return null;
+    }
+
+    // Build reflection prompt
+    const conversationText = messages
+      .map(m => `${m.role}: ${m.content}`)
+      .join("\n\n");
+
+    const reflectionPrompt = `Analyze this conversation and extract structured session data.
+
+CONVERSATION:
+${conversationText.slice(-3000)}
+
+Respond in this EXACT format:
+USER_GOAL: [What was the user trying to accomplish? One sentence max.]
+COMPLETED: [What was actually completed or resolved? One sentence.]
+NEXT_STEPS: [What should be done next? Comma-separated list or "none"]
+TYPE: [decision|bugfix|feature|discovery|gotcha|how-it-works|trade-off|change]
+TITLE: [One-line summary, max 60 chars]
+NARRATIVE: [2-3 sentences explaining what happened and why it matters]
+FACTS: [comma-separated facts learned, if any]
+CONCEPTS: [comma-separated tags for search]
+
+If nothing significant happened, respond with: SKIP`;
+
+    try {
+      // Use brain to analyze
+      const result = await this.brain.think(
+        [{ role: "user", content: reflectionPrompt }],
+        "You are a conversation analyst. Extract structured learnings from conversations.",
+        undefined
+      );
+
+      const response = result.content.trim();
+
+      // Check for skip
+      if (response.startsWith("SKIP")) {
+        return null;
+      }
+
+      // Parse response
+      const userGoalMatch = response.match(/USER_GOAL:\s*(.+?)(?:\n|COMPLETED)/);
+      const completedMatch = response.match(/COMPLETED:\s*(.+?)(?:\n|NEXT_STEPS)/);
+      const nextStepsMatch = response.match(/NEXT_STEPS:\s*(.+?)(?:\n|TYPE)/);
+      const typeMatch = response.match(/TYPE:\s*(\w+)/);
+      const titleMatch = response.match(/TITLE:\s*(.+?)(?:\n|NARRATIVE)/);
+      const narrativeMatch = response.match(/NARRATIVE:\s*(.+?)(?:\n|FACTS)/s);
+      const factsMatch = response.match(/FACTS:\s*(.+?)(?:\n|CONCEPTS)/s);
+      const conceptsMatch = response.match(/CONCEPTS:\s*(.+?)(?:\n|$)/s);
+
+      const type = typeMatch?.[1] as ObservationType || "change";
+      const title = titleMatch?.[1]?.trim() || "Session reflection";
+      const narrative = narrativeMatch?.[1]?.trim() || response.slice(0, 200);
+      const facts = factsMatch?.[1]?.split(",").map(s => s.trim()).filter(Boolean) || [];
+      const concepts = conceptsMatch?.[1]?.split(",").map(s => s.trim()).filter(Boolean) || ["session-reflection"];
+      
+      const userGoal = userGoalMatch?.[1]?.trim() || undefined;
+      const completed = completedMatch?.[1]?.trim() || undefined;
+      const nextSteps = nextStepsMatch?.[1]?.trim() || undefined;
+
+      // Store observation
+      const obsId = this.memory.addObservation(
+        sessionId,
+        type,
+        title,
+        narrative,
+        facts,
+        concepts,
+        { channel: "telegram" }
+      );
+
+      // Get current message count
+      const messageCount = this.memory.getMessageCount(sessionId);
+
+      // Update session summary with ALL fields
+      this.memory.updateSessionSummary(sessionId, {
+        user_goal: userGoal,
+        completed: completed,
+        learned: narrative,
+        next_steps: nextSteps,
+        message_count: messageCount,
+      });
+
+      return `🟣 Reflected: ${title} (obs #${obsId})`;
+    } catch (err: any) {
+      console.error("[Agent] Reflection error:", err.message);
+      return null;
+    }
+  }
+
+  // ===========================================
+  // NEW: CROSS-CHANNEL SESSION TRACKING
+  // ===========================================
+
+  /**
+   * Track activity for a session (called automatically by process())
+   */
+  private trackActivity(sessionId: string): void {
+    this.sessionActivity.set(sessionId, Date.now());
+  }
+
+  /**
+   * Start the background checker for inactive sessions
+   */
+  private startInactivityChecker(): void {
+    if (this.inactivityCheckInterval) return;
+
+    this.inactivityCheckInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [sessionId, lastActivity] of this.sessionActivity) {
+        if (now - lastActivity > this.INACTIVITY_TIMEOUT_MS) {
+          // Session is inactive - trigger reflection
+          this.triggerReflection(sessionId);
+          // Remove from tracking to prevent repeated reflections
+          this.sessionActivity.delete(sessionId);
+        }
+      }
+    }, this.CHECK_INTERVAL_MS);
+  }
+
+  /**
+   * Trigger reflection for an inactive session
+   */
+  private async triggerReflection(sessionId: string): Promise<void> {
+    console.error(`[Agent] Session ${sessionId} inactive for 3 min, triggering reflection...`);
+    try {
+      const result = await this.reflect(sessionId);
+      if (result) {
+        console.error(`[Agent] ${result}`);
+      }
+    } catch (err: any) {
+      console.error(`[Agent] Reflection error: ${err.message}`);
+    }
+  }
+
+  /**
+   * Stop the inactivity checker (cleanup)
+   */
+  stopInactivityChecker(): void {
+    if (this.inactivityCheckInterval) {
+      clearInterval(this.inactivityCheckInterval);
+      this.inactivityCheckInterval = null;
+    }
+  }
+
   close(): void {
+    this.stopInactivityChecker();
     this.memory.close();
   }
 }
+
 // ============================================
 // CRASH RECOVERY (Add after class definition)
 // ============================================

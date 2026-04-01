@@ -160,6 +160,9 @@ export function createTelegramChannel(agent: any, token: string) {
     const sessionId = `telegram:${userId}`;
     agent.setSession(sessionId);
 
+    // NOTE: Inactivity tracking is now handled by Agent.process() automatically
+    // No need for channel-specific tracking
+
     // Handle /voice command
     if (message === "/voice" || message.startsWith("/voice ")) {
       const args = message.replace("/voice", "").trim().toLowerCase();
@@ -221,6 +224,12 @@ export function createTelegramChannel(agent: any, token: string) {
       return;
     }
 
+    if (message === "/new") {
+      agent.clearSession(sessionId);
+      await ctx.reply("✓ New conversation started. Previous context cleared. What would you like to work on?");
+      return;
+    }
+
     if (message === "/clear") {
       agent.clearSession(sessionId);
       await ctx.reply("✓ Conversation history cleared.");
@@ -267,6 +276,7 @@ export function createTelegramChannel(agent: any, token: string) {
 /voice - Toggle voice mode
 /voice list - Show available voices
 /voice <name> - Set your preferred voice
+/new - Start a new conversation
 /help - Show this message
 
 Just chat with me normally for anything else!`);
@@ -278,7 +288,7 @@ Just chat with me normally for anything else!`);
 
     try {
       console.log(`[Telegram] Processing: "${message.slice(0, 50)}..."`);
-      const response = await agent.process(message);
+      const response = await agent.process(message);  // This now tracks activity automatically
       console.log(`[Telegram] Response generated (${response.length} chars)`);
       
       recovery.markClean(sessionId);
@@ -303,6 +313,7 @@ Just chat with me normally for anything else!`);
       console.log("[Telegram] Bot starting with long polling...");
       
       bot.telegram.setMyCommands([
+        { command: "new", description: "Start a new conversation" },
         { command: "memory", description: "View agent memory (facts & sessions)" },
         { command: "clear", description: "Clear conversation history" },
         { command: "tools", description: "List available tools" },
@@ -313,7 +324,7 @@ Just chat with me normally for anything else!`);
         { command: "voice", description: "Toggle voice mode or set voice" },
       ]).catch(err => console.error("[Telegram] Failed to set commands:", err.message));
       
-      bot.launch({ dropPendingUpdates: true });
+      bot.launch({ dropPendingUpdates: false });
       
       bot.telegram.getMe().then((botInfo) => {
         console.log(`[Telegram] Connected as @${botInfo.username}`);
@@ -327,6 +338,9 @@ Just chat with me normally for anything else!`);
     },
   };
 }
+
+// NOTE: trackSessionActivity and triggerReflection functions removed
+// The Agent class now handles inactivity tracking across ALL channels
 
 // Helper function to get voice name from ID
 function getVoiceName(voiceId: string): string {

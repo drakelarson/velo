@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 import { Database } from "bun:sqlite";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 export default {
@@ -16,7 +17,9 @@ export default {
       return "Learn tool ready. Usage: action='preference:key=value'";
     }
     
-    const dbPath = path.resolve(process.cwd(), "data/velo.db");
+    // Use the correct velo home directory
+    const veloHome = path.join(os.homedir(), ".velo");
+    const dbPath = path.join(veloHome, "data", "velo.db");
     const dataDir = path.dirname(dbPath);
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });

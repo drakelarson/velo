@@ -33,6 +33,11 @@ Commands:
   sessions        List all conversation sessions
   clear <session> Clear a session's history
   
+  memory stats    Show enhanced memory statistics (observations, sessions, prompts)
+  memory search <query>  Search observations with FTS5 full-text search
+  memory recent   Show recent observations across all sessions
+  memory observe <type> <title> <narrative>  Record a new observation
+  
   compact <session>    Manually compact a session's history
   compact test <model> Test compaction with a model
   compact status <session>  Show compaction history
@@ -53,12 +58,23 @@ Commands:
   build           Build single-binary executable
   help            Show this help message
 
+Memory Observation Types:
+  🟤 decision     - Architecture or design decisions
+  🟡 bugfix       - Bug fixes and corrections
+  🟢 feature      - New features or capabilities
+  🟣 discovery    - Learnings or insights
+  🔴 gotcha       - Critical edge cases or pitfalls
+  🔵 how-it-works - Technical explanations
+  ⚖️ trade-off    - Deliberate compromises
+  📌 change       - General changes
+
 Examples:
   velo setup                           # Interactive setup
   velo chat "Hello!"                   # Chat
   velo history                         # View recent messages
-  velo sessions                        # List all sessions
-  velo clear default                   # Clear default session
+  velo memory stats                    # View memory statistics
+  velo memory search "auth bug"        # Search for auth-related bugs
+  velo memory observe bugfix "Fixed timeout" "Increased timeout to 120s"
   velo compact test ollama:qwen2.5:0.5b  # Test FREE local compaction
   velo orchestrate run research_report "AI in 2026"  # Multi-agent workflow
 
@@ -440,7 +456,48 @@ async function main() {
     }
 
     case "memory": {
-      console.log(agent.getMemoryStatus());
+      const subCmd = args[1];
+      
+      if (subCmd === "stats") {
+        console.log(agent.getEnhancedMemoryStatus());
+      } else if (subCmd === "search") {
+        const query = args.slice(2).join(" ");
+        if (!query) {
+          console.log("Usage: velo memory search <query>");
+          console.log("Example: velo memory search auth bug");
+        } else {
+          // Use memory's search directly
+          const results = (agent as any).memory.searchObservations(query);
+          if (results.length === 0) {
+            console.log(`No observations found for "${query}"`);
+          } else {
+            console.log(`Found ${results.length} observations:\n`);
+            for (const r of results) {
+              console.log(`  #${r.id} [${r.type}] ${r.title}`);
+            }
+          }
+        }
+      } else if (subCmd === "recent") {
+        console.log(agent.getRecentObservations(20));
+      } else if (subCmd === "observe") {
+        const type = args[2] as any;
+        const title = args[3];
+        const narrative = args.slice(4).join(" ");
+        if (!type || !title) {
+          console.log("Usage: velo memory observe <type> <title> <narrative>");
+          console.log("Types: decision, bugfix, feature, discovery, gotcha, how-it-works, trade-off, change");
+        } else {
+          const id = agent.observe(type, title, narrative);
+          console.log(`✓ Recorded observation #${id}`);
+        }
+      } else {
+        console.log(agent.getMemoryStatus());
+        console.log("\nMemory Commands:");
+        console.log("  velo memory stats     - Show enhanced memory statistics");
+        console.log("  velo memory search <q> - Search observations");
+        console.log("  velo memory recent    - Show recent observations");
+        console.log("  velo memory observe <type> <title> <narrative> - Record observation");
+      }
       agent.close();
       break;
     }

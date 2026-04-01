@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --compile --outfile dist/velo",
+    "build": "bun build src/index.ts --target=bun --compile --outfile dist/velo",
     "dev": "bun run --watch src/index.ts"
   },
   "dependencies": {
