@@ -46,15 +46,16 @@ Then Velo runs as a 24/7 background service.
 1. **Get a bot token**
    Open Telegram → chat [@BotFather](https://t.me/BotFather) → send `/newbot` → follow prompts → copy the token
 
-2. **Start Velo**
+2. **Run the setup wizard**
    ```bash
-   velo telegram YOUR_TOKEN_HERE
+   velo setup
    ```
+   This guides you through everything: provider, API key, Telegram token, agent name.
 
-3. **Test it**
-   Send any message to your bot on Telegram. It responds.
+3. **Done**
+   Velo is running. Message your bot on Telegram.
 
-That's it. No config files, no API keys (yet), no setup wizard required.
+> **Tip:** If you already have a token, just run `velo telegram YOUR_TOKEN` to start immediately.
 
 ### Other Channels
 
