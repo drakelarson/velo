@@ -1,16 +1,16 @@
 import type { Skill } from "../../src/types.ts";
 
 /**
- * Skill Creator - Guides Velo in creating new community skills
+ * Skill Creator - Guides Velo in creating new my-skills
  * 
  * This is a META-skill: when called, it returns guidance for creating
- * and installing a new skill into ~/.velo/community/
+ * and installing a new skill into ~/.velo/my-skills/
  * 
  * Usage: "create a skill to..." or "make a new skill..."
  */
 export default {
   name: "skill_create",
-  description: "Creates and installs new Velo community skills. Use when user wants to build a custom skill to extend Velo's capabilities. Triggers: 'create a skill', 'make a new skill', 'build a skill', 'add a skill', 'I need a skill that...'",
+  description: "Creates and installs new Velo my-skills. Use when user wants to build a custom skill to extend Velo's capabilities. Triggers: 'create a skill', 'make a new skill', 'build a skill', 'add a skill', 'I need a skill that...'",
   
   async execute(args: Record<string, unknown>): Promise<string> {
     const intent = args.intent as string || "";
@@ -18,7 +18,7 @@ export default {
     // Return the skill creation guide
     return `## Velo Skill Creator Guide
 
-To create a new community skill:
+To create a new my-skills skill:
 
 ### 1. Determine the Skill
 - **Name**: Short, lowercase with underscores (e.g., \`crypto_price\`, \`weather_fetch\`)
@@ -26,7 +26,7 @@ To create a new community skill:
 - **Arguments**: What inputs it needs
 
 ### 2. Create the Skill File
-Create at: \`~/.velo/community/<skill-name>.ts\`
+Create at: \`~/.velo/my-skills/<skill-name>.ts\`
 
 \`\`\`typescript
 import type { Skill } from "../src/types.ts";
@@ -63,7 +63,7 @@ Restart Velo or run \`/recover\`, then test:
 \`use <skill_name> with query=value\`
 
 ### File Location
-**Community skills**: \`~/.velo/community/<skill-name>.ts\`
+**Community skills**: \`~/.velo/my-skills/<skill-name>.ts\`
 **Built-in skills**: \`/path/to/velo/skills/<category>/\`
 
 ### Example - Crypto Price Skill
@@ -94,6 +94,6 @@ export default {
 \`\`\`
 
 After creating, tell the user:
-"Skill created at ~/.velo/community/<skill-name>.ts — restart Velo or run /recover to load it."`;
+"Skill created at ~/.velo/my-skills/<skill-name>.ts — restart Velo or run /recover to load it."`;
   },
 } as Skill;
