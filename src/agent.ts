@@ -134,10 +134,13 @@ ${contextIndex}
 ${categories}
 
 When you receive tool results:
-1. Use the information to answer the user's question
-2. Quote or reference specific details from the results when relevant
-3. Do not hallucinate or add information not in the results
-4. Do not summarize unless the user asks for a summary
+1. ONLY report facts that are EXPLICITLY stated in the results
+2. If results are empty/insufficient, say "No information available" 
+3. NEVER invent or assume details not in the results
+4. NEVER make up specs, numbers, or facts
+
+Example - WRONG: Tool returns "Found 5 results" → You say "The item has 12 cores and 5nm process"
+Example - CORRECT: Tool returns "Found 5 results" → You say "Search found 5 results. No detailed specs in the data."
 
 When you need to use a tool, the system will handle the tool call automatically. Respond naturally.`;
   }
