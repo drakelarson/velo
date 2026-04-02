@@ -143,12 +143,15 @@ When you need to use a tool, the system will handle the tool call automatically.
       function: {
         name: skill.name,
         description: skill.description,
-        parameters: {
+        // Use skill-specific parameters if provided, otherwise default to action+args
+        parameters: skill.parameters || {
           type: "object",
           properties: {
             action: { type: "string", description: "Action to perform" },
+            args: { type: "string", description: "Additional arguments" },
+            url: { type: "string", description: "URL input for web requests" },
           },
-          required: ["action"],
+          required: [],
         },
       },
     }));
