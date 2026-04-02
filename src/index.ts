@@ -820,9 +820,9 @@ async function main() {
       const lockFile = `${lockDir}/${channel}.lock`;
       let killed = false;
       
-      if (Bun.file(lockFile).exists()) {
+      if (fs.existsSync(lockFile)) {
         try {
-          const content = await Bun.file(lockFile).text();
+          const content = fs.readFileSync(lockFile, "utf-8");
           const oldPid = parseInt(content.trim());
           if (!isNaN(oldPid) && oldPid > 0) {
             console.log(`  Stopping ${channel} (PID ${oldPid})...`);
@@ -852,43 +852,36 @@ async function main() {
       
       // 2. Clean up lock file
       try {
-        if (Bun.file(lockFile).exists()) {
-          await Bun.write(lockFile, "");
+        if (fs.existsSync(lockFile)) {
+          fs.unlinkSync(lockFile);
           console.log("  ✓ Lock cleaned");
         }
       } catch (e) {}
       
       await new Promise(r => setTimeout(r, 500));
       
-      // 3. Find the best binary to run
-      const binaryPath = (
-        Bun.file("dist/velo").exists() ? "./dist/velo" :
-        Bun.file("/usr/local/bin/velo").exists() ? "/usr/local/bin/velo" :
-        process.argv[0]
-      );
-      
-      console.log(`  Starting with: ${binaryPath}`);
-      
-      // 4. Start fresh using the ACTUAL running binary
-      const myPath = process.argv[1] || "/usr/local/bin/velo";
+      // 3. Get token
       const token = process.env.TELEGRAM_BOT_TOKEN || "";
       if (!token) {
         console.error("  ✖ TELEGRAM_BOT_TOKEN not set");
         console.error("    Set it in ~/.velo/velo.env or export it");
         process.exit(1);
       }
-      const startCmd = myPath.includes("dist/velo") 
-        ? [myPath, "telegram", token]  // dev mode: ./dist/velo telegram
-        : ["bun", "run", myPath, "telegram", token];  // installed: bun run /path/src/index.ts telegram
+      
+      // 4. Always use "bun run <known-src-path> telegram <token>"
+      // We hardcode /home/workspace/velo since that's where velo source lives on this machine
+      // For portable use, could also try process.cwd() or look for velo source
+      const veloSrcPath = "/home/workspace/velo/src/index.ts";
+      
+      console.log(`  Starting: bun run ${veloSrcPath} ${channel}`);
       
       const child = Bun.spawn({
-        cmd: startCmd,
+        cmd: ["bun", "run", veloSrcPath, channel, token],
         stdout: "inherit",
         stderr: "inherit",
         detached: true,
         env: {
           ...process.env,
-          VELO_HOME: path.join(os.homedir(), ".velo"),
         },
       });
       
