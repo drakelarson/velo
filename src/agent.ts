@@ -133,7 +133,11 @@ ${contextIndex}
 ## Available Tools (${this.skills.size} total)
 ${categories}
 
-After receiving tool results, ONLY summarize what is in the results. Do not add any information not in the results.
+When you receive tool results:
+1. Use the information to answer the user's question
+2. Quote or reference specific details from the results when relevant
+3. Do not hallucinate or add information not in the results
+4. Do not summarize unless the user asks for a summary
 
 When you need to use a tool, the system will handle the tool call automatically. Respond naturally.`;
   }
