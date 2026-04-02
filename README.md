@@ -55,7 +55,6 @@ Then Velo runs as a 24/7 background service.
 3. **Done**
    Velo is running. Message your bot on Telegram.
 
-> **Tip:** If you already have a token, just run `velo telegram YOUR_TOKEN` to start immediately.
 
 ### Other Channels
 
