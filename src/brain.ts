@@ -54,7 +54,7 @@ export class Brain {
       model: this.model,
       messages: fullMessages,
       tools: tools?.length ? this.formatTools(tools) : undefined,
-      temperature: 0.7,
+      temperature: 0.5,
       top_p: 0.95,
       tool_choice: tools?.length ? "auto" : undefined,
     });
@@ -119,7 +119,7 @@ export class Brain {
       model: modelOverride,
       messages: fullMessages,
       tools: tools?.length ? this.formatTools(tools) : undefined,
-      temperature: 0.7,
+      temperature: 0.5,
       top_p: 0.95,
       tool_choice: tools?.length ? "auto" : undefined,
     });
@@ -180,7 +180,7 @@ export class Brain {
       model: this.model,
       messages: fullMessages,
       tools: tools?.length ? this.formatTools(tools) : undefined,
-      temperature: 0.7,
+      temperature: 0.5,
       top_p: 0.95,
       tool_choice: tools?.length ? "auto" : undefined,
     });
