@@ -810,60 +810,61 @@ async function main() {
     }
 
     case "restart": {
-      // Properly restart: kill old processes, clean locks, start fresh
+      // Properly restart: kill old process via lock, clean locks, start fresh
       const channel = args[1] || "telegram";
       
       console.log(`\n  ▓▓▓  Restarting Velo ${channel}  ▓▓▓\n`);
       
-      // 1. Kill ALL matching velo processes (not just the lock holder)
-      console.log("  Stopping all Velo processes...");
-      try {
-        const killOutput = Bun.spawnSync({
-          cmd: ["pkill", "-9", "-f", `velo.*${channel}`],
-          stderr: "pipe",
-        });
-        // Ignore pkill output
-      } catch (e) {
-        // pkill returns non-zero if no processes found
-      }
-      
-      // Also kill any bun processes running velo source
-      try {
-        Bun.spawnSync({
-          cmd: ["pkill", "-9", "-f", `bun.*src.*index.*${channel}`],
-          stderr: "pipe",
-        });
-      } catch (e) {}
-      
-      await new Promise(r => setTimeout(r, 1000));
-      console.log("  ✓ Old processes stopped");
-      
-      // 2. Clean up stale lock files
+      // 1. Read lock file and kill ONLY that specific PID
       const lockDir = "/tmp/velo-locks";
       const lockFile = `${lockDir}/${channel}.lock`;
-      try {
-        if (Bun.file(lockFile).exists()) {
+      let killed = false;
+      
+      if (Bun.file(lockFile).exists()) {
+        try {
           const content = await Bun.file(lockFile).text();
           const oldPid = parseInt(content.trim());
-          // Check if process is actually dead
-          try {
-            process.kill(oldPid, 0); // Signal 0 just checks if process exists
-            // Still alive, force kill
-            process.kill(oldPid, 9);
-            await new Promise(r => setTimeout(r, 500));
-          } catch {
-            // Process is dead, remove lock
+          if (!isNaN(oldPid) && oldPid > 0) {
+            console.log(`  Stopping ${channel} (PID ${oldPid})...`);
+            try {
+              process.kill(oldPid, 9); // SIGKILL
+              await new Promise(r => setTimeout(r, 500));
+              console.log("  ✓ Old process killed");
+              killed = true;
+            } catch (e: any) {
+              if (e.code !== "ESRCH") {
+                console.log(`  ⚠ Could not kill PID ${oldPid}: ${e.message}`);
+              }
+            }
           }
+        } catch (e) {}
+      }
+      
+      // Also kill any stale bun processes for this channel (but not ourselves)
+      if (!killed) {
+        try {
+          Bun.spawnSync({
+            cmd: ["pkill", "-9", "-f", `bun.*index.*${channel}`],
+            stderr: "pipe",
+          });
+        } catch (e) {}
+      }
+      
+      // 2. Clean up lock file
+      try {
+        if (Bun.file(lockFile).exists()) {
           await Bun.write(lockFile, "");
-          console.log("  ✓ Stale lock cleaned");
+          console.log("  ✓ Lock cleaned");
         }
       } catch (e) {}
+      
+      await new Promise(r => setTimeout(r, 500));
       
       // 3. Find the best binary to run
       const binaryPath = (
         Bun.file("dist/velo").exists() ? "./dist/velo" :
         Bun.file("/usr/local/bin/velo").exists() ? "/usr/local/bin/velo" :
-        process.argv[0] // fallback to current interpreter
+        process.argv[0]
       );
       
       console.log(`  Starting with: ${binaryPath}`);
@@ -871,7 +872,7 @@ async function main() {
       // 4. Spawn fresh process (detached, not inherited)
       const token = process.env.TELEGRAM_BOT_TOKEN || "";
       if (!token) {
-        console.error("  ✖ TELEGRAM_BOT_TOKEN not set in environment");
+        console.error("  ✖ TELEGRAM_BOT_TOKEN not set");
         console.error("    Set it in ~/.velo/velo.env or export it");
         process.exit(1);
       }
@@ -890,7 +891,6 @@ async function main() {
       console.log(`  ✓ Started PID ${child.pid}`);
       console.log(`  Channel ${channel} will be ready in a few seconds...\n`);
       
-      // Unref so parent can exit
       child.unref();
       process.exit(0);
     }
