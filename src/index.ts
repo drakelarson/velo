@@ -810,22 +810,89 @@ async function main() {
     }
 
     case "restart": {
-      // Restart a running service (sends SIGINT, supervisord auto-restarts on Zo)
-      const { getChannelLockInfo } = await import("./lock.ts");
+      // Properly restart: kill old processes, clean locks, start fresh
       const channel = args[1] || "telegram";
-      const info = getChannelLockInfo(channel);
-
-      if (info) {
-        console.log(`Restarting ${channel} (PID ${info.pid})...`);
-        process.kill(info.pid, "SIGINT");
-        console.log(`✓ ${channel} restart signal sent`);
-        console.log(`  Service will resume automatically`);
-      } else {
-        console.error(`✖ No running ${channel} found`);
-        console.error(`  Use 'velo telegram <token>' to start first`);
+      
+      console.log(`\n  ▓▓▓  Restarting Velo ${channel}  ▓▓▓\n`);
+      
+      // 1. Kill ALL matching velo processes (not just the lock holder)
+      console.log("  Stopping all Velo processes...");
+      try {
+        const killOutput = Bun.spawnSync({
+          cmd: ["pkill", "-9", "-f", `velo.*${channel}`],
+          stderr: "pipe",
+        });
+        // Ignore pkill output
+      } catch (e) {
+        // pkill returns non-zero if no processes found
+      }
+      
+      // Also kill any bun processes running velo source
+      try {
+        Bun.spawnSync({
+          cmd: ["pkill", "-9", "-f", `bun.*src.*index.*${channel}`],
+          stderr: "pipe",
+        });
+      } catch (e) {}
+      
+      await new Promise(r => setTimeout(r, 1000));
+      console.log("  ✓ Old processes stopped");
+      
+      // 2. Clean up stale lock files
+      const lockDir = "/tmp/velo-locks";
+      const lockFile = `${lockDir}/${channel}.lock`;
+      try {
+        if (Bun.file(lockFile).exists()) {
+          const content = await Bun.file(lockFile).text();
+          const oldPid = parseInt(content.trim());
+          // Check if process is actually dead
+          try {
+            process.kill(oldPid, 0); // Signal 0 just checks if process exists
+            // Still alive, force kill
+            process.kill(oldPid, 9);
+            await new Promise(r => setTimeout(r, 500));
+          } catch {
+            // Process is dead, remove lock
+          }
+          await Bun.write(lockFile, "");
+          console.log("  ✓ Stale lock cleaned");
+        }
+      } catch (e) {}
+      
+      // 3. Find the best binary to run
+      const binaryPath = (
+        Bun.file("dist/velo").exists() ? "./dist/velo" :
+        Bun.file("/usr/local/bin/velo").exists() ? "/usr/local/bin/velo" :
+        process.argv[0] // fallback to current interpreter
+      );
+      
+      console.log(`  Starting with: ${binaryPath}`);
+      
+      // 4. Spawn fresh process (detached, not inherited)
+      const token = process.env.TELEGRAM_BOT_TOKEN || "";
+      if (!token) {
+        console.error("  ✖ TELEGRAM_BOT_TOKEN not set in environment");
+        console.error("    Set it in ~/.velo/velo.env or export it");
         process.exit(1);
       }
-      break;
+      
+      const child = Bun.spawn({
+        cmd: [binaryPath, "telegram", token],
+        stdout: "inherit",
+        stderr: "inherit",
+        detached: true,
+        env: {
+          ...process.env,
+          VELO_HOME: path.join(os.homedir(), ".velo"),
+        },
+      });
+      
+      console.log(`  ✓ Started PID ${child.pid}`);
+      console.log(`  Channel ${channel} will be ready in a few seconds...\n`);
+      
+      // Unref so parent can exit
+      child.unref();
+      process.exit(0);
     }
 
     case "my-skills": {
