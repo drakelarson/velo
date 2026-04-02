@@ -2,14 +2,63 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Skill } from "./types.ts";
 import { PluginManager } from "./plugins.ts";
+import * as os from "os";
+
+/**
+ * Parse a markdown skill file into a Skill object.
+ * Markdown skills use frontmatter for metadata and body as LLM prompt.
+ */
+function parseMarkdownSkill(content: string, filePath: string): Skill | null {
+  // Parse YAML frontmatter
+  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!frontmatterMatch) {
+    return null;
+  }
+  
+  const [, frontmatter, body] = frontmatterMatch;
+  
+  // Extract frontmatter fields
+  const nameMatch = frontmatter.match(/name:\s*"?([^"\n]+)"?/);
+  const descriptionMatch = frontmatter.match(/description:\s*"([^"]+)"/);
+  
+  if (!nameMatch || !descriptionMatch) {
+    return null;
+  }
+  
+  const name = nameMatch[1];
+  const description = descriptionMatch[1];
+  
+  // Clean up the body (remove code blocks markers, etc.)
+  const prompt = body.trim();
+  
+  return {
+    name,
+    description,
+    execute: async (args: Record<string, unknown>) => {
+      // Inject args into the prompt template
+      let populatedPrompt = prompt;
+      for (const [key, value] of Object.entries(args)) {
+        populatedPrompt = populatedPrompt.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
+        populatedPrompt = populatedPrompt.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
+      }
+      
+      // Return the prompt for the LLM to execute
+      return `[SKILL: ${name}]\n\n${populatedPrompt}\n\n[END SKILL: ${name}]`;
+    },
+  };
+}
 
 function walkDir(dir: string, fileList: string[] = []): string[] {
   const files = fs.readdirSync(dir);
   for (const file of files) {
     const fullPath = path.join(dir, file);
     if (fs.statSync(fullPath).isDirectory()) {
+      // Skip subdirectories in skills/ root (but not for my-skills)
+      if (file === "system" || file === "web" || file === "dev") continue;
       walkDir(fullPath, fileList);
     } else if (file.endsWith(".ts") || file.endsWith(".js")) {
+      fileList.push(fullPath);
+    } else if (file.endsWith(".md")) {
       fileList.push(fullPath);
     }
   }
@@ -27,6 +76,18 @@ export async function loadSkills(directory: string): Promise<Skill[]> {
     for (const skillPath of files) {
       try {
         console.error(`[Skills] Loading: ${skillPath}`);
+        
+        if (skillPath.endsWith(".md")) {
+          // Load .md skills as prompt-based LLM instructions
+          const content = fs.readFileSync(skillPath, "utf-8");
+          const skill = parseMarkdownSkill(content, skillPath);
+          if (skill) {
+            console.error(`[Skills] Loaded markdown skill: ${skill.name}`);
+            skills.push(skill);
+          }
+          continue;
+        }
+        
         const module = await import(skillPath);
         
         if (module.default) {
@@ -45,7 +106,41 @@ export async function loadSkills(directory: string): Promise<Skill[]> {
     fs.mkdirSync(fullPath, { recursive: true });
   }
 
-  // 2. Load skills from plugins (npm packages + local plugins)
+  // 2. Load user's my-skills from ~/.velo/my-skills/
+  const userSkillsDir = path.join(os.homedir(), ".velo", "my-skills", "skills");
+  if (fs.existsSync(userSkillsDir)) {
+    const userFiles = fs.readdirSync(userSkillsDir);
+    for (const file of userFiles) {
+      const skillPath = path.join(userSkillsDir, file);
+      if (!fs.statSync(skillPath).isFile()) continue;
+      
+      try {
+        console.error(`[Skills] Loading user skill: ${skillPath}`);
+        
+        if (file.endsWith(".md")) {
+          const content = fs.readFileSync(skillPath, "utf-8");
+          const skill = parseMarkdownSkill(content, skillPath);
+          if (skill) {
+            console.error(`[Skills] Loaded user markdown skill: ${skill.name}`);
+            skills.push(skill);
+          }
+          continue;
+        }
+        
+        if (file.endsWith(".ts") || file.endsWith(".js")) {
+          const module = await import(skillPath);
+          if (module.default) {
+            console.error(`[Skills] Loaded user skill: ${module.default.name}`);
+            skills.push(module.default as Skill);
+          }
+        }
+      } catch (err) {
+        console.error(`[Skills] Failed to load user skill ${file}: ${err}`);
+      }
+    }
+  }
+
+  // 3. Load skills from plugins (npm packages + local plugins)
   try {
     const pluginManager = new PluginManager(path.dirname(fullPath));
     pluginManager.loadState(); // Load enabled/disabled state
