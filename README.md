@@ -12,16 +12,15 @@ One command to start. Infinite memory. Zero vendor lock-in.
 # 1. Install (any Linux/macOS)
 curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
 
-# 2. Get a Telegram bot token
-#    Message @BotFather → /newbot → copy the token
+# 2. Run the setup wizard (guides you through everything)
+velo setup
 
 # 3. Start
-velo telegram 123456:ABC-DEF-YOUR-TOKEN-HERE
+velo start
 ```
 
-Done. Message your bot on Telegram — it responds instantly.
-
-Need help? `velo --help` shows all commands.
+Done. The setup wizard asks for your Telegram bot token, AI provider, and preferences.
+Then Velo runs as a 24/7 background service.
 
 ---
 
