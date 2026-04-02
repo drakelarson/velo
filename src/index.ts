@@ -876,6 +876,51 @@ async function main() {
       break;
     }
 
+    case "my-skills": {
+      const subCmd = args[1];
+      const target = args[2];
+      
+      const { MySkillsManager } = await import("./community.ts");
+      const manager = new MySkillsManager();
+      
+      if (subCmd === "install" && target) {
+        console.log(`Installing skill: ${target}`);
+        const result = await manager.install(target);
+        console.log(`✓ Installed: ${result.name}`);
+        console.log(`  Location: ${result.path}`);
+        console.log(`\nSkills are loaded from ~/.velo/my-skills/skills/`);
+        console.log(`Restart velo to use the new skill.`);
+      } else if (subCmd === "uninstall" && target) {
+        manager.uninstall(target);
+        console.log(`✓ Uninstalled: ${target}`);
+      } else if (subCmd === "list") {
+        const skills = manager.list();
+        if (skills.length === 0) {
+          console.log("No skills installed.");
+          console.log("Install one: velo my-skills install <github-url>");
+        } else {
+          console.log("\n📦 My Skills:\n");
+          for (const s of skills) {
+            console.log(`  ${s.name}`);
+            console.log(`    ${s.description}`);
+            console.log(`    by ${s.author} • ${s.repo}`);
+            console.log(`    ${s.installPath}`);
+            console.log("");
+          }
+        }
+      } else {
+        console.log("\n📦 Velo My Skills\n");
+        console.log("Install skills from GitHub directly:\n");
+        console.log("  velo my-skills install <github-url>");
+        console.log("  velo my-skills install https://github.com/user/velo-skill-crypto\n");
+        console.log("  velo my-skills list           # Show installed");
+        console.log("  velo my-skills uninstall <n>  # Remove a skill\n");
+        console.log("Skills are installed to: ~/.velo/my-skills/skills/");
+        console.log("They persist across updates and are loaded automatically.\n");
+      }
+      break;
+    }
+
     case "help":
     case "--help":
     case "-h":

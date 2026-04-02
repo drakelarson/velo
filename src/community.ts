@@ -1,9 +1,8 @@
 /**
- * Community Skills - User-installable skills from GitHub
+ * My Skills - User-installable skills from GitHub
  * 
- * Installs skills to ~/.velo/community/ (separate from built-in skills/)
- * Users install via: velo community install <github-url>
- * or: velo community install <skill-name> (searches community registry)
+ * Installs skills to ~/.velo/my-skills/ (separate from built-in skills/)
+ * Users install via: velo my-skills install <github-url>
  */
 
 import * as fs from "fs";
@@ -12,25 +11,25 @@ import * as path from "path";
 import { spawn } from "bun";
 import type { Skill } from "./types.ts";
 
-const COMMUNITY_DIR = path.join(os.homedir(), ".velo", "community");
+const MY_SKILLS_DIR = path.join(os.homedir(), ".velo", "my-skills");
 
-export interface CommunitySkill {
+export interface MySkill {
   name: string;
   description: string;
   author: string;
   repo: string;
-  path: string; // path within repo to skill file
-  installPath: string; // where it's installed locally
+  path: string;
+  installPath: string;
 }
 
-export class CommunitySkillsManager {
+export class MySkillsManager {
   private registryPath: string;
   private skillsDir: string;
-  private registry: Map<string, CommunitySkill>;
+  private registry: Map<string, MySkill>;
 
   constructor() {
-    this.skillsDir = path.join(COMMUNITY_DIR, "skills");
-    this.registryPath = path.join(COMMUNITY_DIR, "registry.json");
+    this.skillsDir = path.join(MY_SKILLS_DIR, "skills");
+    this.registryPath = path.join(MY_SKILLS_DIR, "registry.json");
     this.registry = new Map();
     this.ensureDirs();
     this.loadRegistry();
@@ -47,7 +46,7 @@ export class CommunitySkillsManager {
       try {
         const data = JSON.parse(fs.readFileSync(this.registryPath, "utf-8"));
         for (const [name, skill] of Object.entries(data)) {
-          this.registry.set(name, skill as CommunitySkill);
+          this.registry.set(name, skill as MySkill);
         }
       } catch {
         // Invalid registry, start fresh
@@ -56,7 +55,7 @@ export class CommunitySkillsManager {
   }
 
   private saveRegistry() {
-    const data: Record<string, CommunitySkill> = {};
+    const data: Record<string, MySkill> = {};
     for (const [name, skill] of this.registry) {
       data[name] = skill;
     }
@@ -64,10 +63,8 @@ export class CommunitySkillsManager {
   }
 
   async install(repoUrl: string): Promise<{ name: string; path: string }> {
-    // Clone to temp, find skill files, install to community/skills/
-    const tmpDir = `/tmp/velo-community-${Date.now()}`;
+    const tmpDir = `/tmp/velo-my-skills-${Date.now()}`;
     
-    // Extract repo info from URL
     const repoMatch = repoUrl.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
     if (!repoMatch) {
       throw new Error(`Invalid GitHub URL: ${repoUrl}`);
@@ -78,7 +75,6 @@ export class CommunitySkillsManager {
     
     console.log(`Installing skill from ${author}/${repoName}...`);
     
-    // Clone the repo
     const cloneResult = await spawn({
       cmd: ["git", "clone", "--depth", "1", repoUrl, tmpDir],
       stdout: "pipe",
@@ -91,22 +87,19 @@ export class CommunitySkillsManager {
       throw new Error(`Failed to clone repo: ${stderr}`);
     }
 
-    // Find skill files (*.skill.ts or skills/*.ts)
     const skillFiles = this.findSkillFiles(tmpDir);
     if (skillFiles.length === 0) {
       fs.rmSync(tmpDir, { recursive: true });
       throw new Error("No skill files found in repository");
     }
 
-    // Install first skill found (or let user pick?)
     const skillFile = skillFiles[0];
     const destPath = path.join(this.skillsDir, `${skillName}.ts`);
     
     fs.copyFileSync(skillFile, destPath);
     fs.rmSync(tmpDir, { recursive: true });
 
-    // Register it
-    const communitySkill: CommunitySkill = {
+    const mySkill: MySkill = {
       name: skillName,
       description: `Installed from ${author}/${repoName}`,
       author,
@@ -115,7 +108,7 @@ export class CommunitySkillsManager {
       installPath: destPath,
     };
     
-    this.registry.set(skillName, communitySkill);
+    this.registry.set(skillName, mySkill);
     this.saveRegistry();
 
     return { name: skillName, path: destPath };
@@ -124,7 +117,6 @@ export class CommunitySkillsManager {
   private findSkillFiles(dir: string): string[] {
     const files: string[] = [];
     
-    // Look for *.skill.ts first
     const walk = (d: string) => {
       for (const entry of fs.readdirSync(d)) {
         const full = path.join(d, entry);
@@ -139,12 +131,10 @@ export class CommunitySkillsManager {
     
     walk(dir);
     
-    // Also check root for any .ts files that could be skills
     if (files.length === 0) {
       for (const entry of fs.readdirSync(dir)) {
         const full = path.join(dir, entry);
         if (entry.endsWith(".ts") && fs.statSync(full).isFile()) {
-          // Check if it looks like a skill
           const content = fs.readFileSync(full, "utf-8");
           if (content.includes("export default") && content.includes("Skill")) {
             files.push(full);
@@ -170,7 +160,7 @@ export class CommunitySkillsManager {
     this.saveRegistry();
   }
 
-  list(): CommunitySkill[] {
+  list(): MySkill[] {
     return Array.from(this.registry.values());
   }
 
@@ -184,7 +174,7 @@ export class CommunitySkillsManager {
           skills.push(module as unknown as Skill);
         }
       } catch (err) {
-        console.error(`[Community] Failed to load ${skill.name}: ${err}`);
+        console.error(`[MySkills] Failed to load ${skill.name}: ${err}`);
       }
     }
     
@@ -196,7 +186,7 @@ export class CommunitySkillsManager {
   }
 }
 
-export function loadCommunitySkills(): Skill[] {
-  const manager = new CommunitySkillsManager();
+export function loadMySkills(): Skill[] {
+  const manager = new MySkillsManager();
   return manager.getLoadedSkills();
 }
