@@ -551,7 +551,8 @@ If nothing significant happened, respond with: SKIP`;
         [{ role: "user", content: reflectionPrompt }],
         "You are a concise conversation analyst. Return ONLY the analysis in the exact format requested. No extra text.",
         "ollama:qwen2.5:3b",
-        undefined
+        undefined,
+        0.2,  // Temperature for reflection - low for structured output
       );
 
       const response = result.content.trim();
