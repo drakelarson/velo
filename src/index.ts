@@ -187,57 +187,9 @@ async function main() {
   }
 
   if (command === "setup") {
-    console.log(`\n  ▓▓▓  Velo Setup Wizard  ▓▓▓\n`);
-    
-    const readline = await import("readline");
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    
-    const ask = (q: string): Promise<string> => new Promise((resolve) => rl.question(q, resolve));
-    
-    // Choose provider
-    console.log("Choose your AI provider:");
-    console.log("  1. NVIDIA (recommended, fast & cheap)");
-    console.log("  2. OpenAI (GPT-4)");
-    console.log("  3. Anthropic (Claude)");
-    console.log("  4. OpenRouter (all models)");
-    console.log("  5. MiniMax (cheapest)");
-    console.log("  6. Ollama (local)");
-    
-    const providerChoice = await ask("\nProvider [1-6]: ");
-    const providers = ["nvidia", "openai", "anthropic", "openrouter", "minimax", "ollama"];
-    const provider = providers[parseInt(providerChoice) - 1] || "nvidia";
-    
-    // Get API key
-    let apiKey = "";
-    if (provider !== "ollama") {
-      apiKey = await ask(`Enter your ${provider.toUpperCase()} API key: `);
-    }
-    
-    // Agent name
-    const agentName = await ask("Agent name [Velo]: ") || "Velo";
-    
-    // Personality
-    const personality = await ask("Personality [Helpful AI assistant]: ") || "Helpful AI assistant";
-    
-    rl.close();
-    
-    // Write config
-    const configMgr = new ConfigManager(configPath);
-    configMgr.set("agent.name", agentName);
-    configMgr.set("agent.personality", personality);
-    configMgr.set("agent.model", `${provider}:${getDefaultModel(provider)}`);
-    if (apiKey) {
-      configMgr.setKey(provider, apiKey);
-    }
-    
-    console.log(`\n✓ Setup complete!\n`);
-    console.log(`  Agent: ${agentName}`);
-    console.log(`  Model: ${provider}:${getDefaultModel(provider)}`);
-    console.log(`  Config: ${configPath}`);
-    console.log(`\nRun 'velo chat "Hello!"' to start chatting.\n`);
+    // Import and run the full setup wizard
+    const { runSetup } = await import("./setup.ts");
+    await runSetup();
     return;
   }
 
