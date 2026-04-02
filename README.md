@@ -1,226 +1,208 @@
 # Velo
 
-**Fast, persistent AI agent framework** — the better, faster, smarter alternative to OpenClaw and Nanobot.
+**Fast, persistent AI agent framework** that runs everywhere — your laptop, a VPS, or as a 24/7 service.
 
-## Quick Start
+One command to start. Infinite memory. Zero vendor lock-in.
+
+---
+
+## TL;DR — Get Running in 60 Seconds
 
 ```bash
-# Option 1: Telegram bot (1 command!)
-velo telegram YOUR_BOT_TOKEN
+# 1. Install (any Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
 
-# Option 2: Interactive setup
+# 2. Get a Telegram bot token
+#    Message @BotFather → /newbot → copy the token
+
+# 3. Start
+velo telegram 123456:ABC-DEF-YOUR-TOKEN-HERE
+```
+
+Done. Message your bot on Telegram — it responds instantly.
+
+Need help? `velo --help` shows all commands.
+
+---
+
+## Quick Command Reference
+
+| Task | Command |
+|------|---------|
+| Start Telegram | `velo telegram <token>` |
+| Interactive chat | `velo chat` |
+| Chat single message | `velo chat "Hello"` |
+| Setup wizard | `velo setup` |
+| Stop all services | `velo stop` |
+| Check status | `velo service` |
+| Restart a service | `velo restart telegram` |
+
+---
+
+## First-Time Setup
+
+### Telegram (1 minute)
+
+1. **Get a bot token**
+   Open Telegram → chat [@BotFather](https://t.me/BotFather) → send `/newbot` → follow prompts → copy the token
+
+2. **Start Velo**
+   ```bash
+   velo telegram YOUR_TOKEN_HERE
+   ```
+
+3. **Test it**
+   Send any message to your bot on Telegram. It responds.
+
+That's it. No config files, no API keys (yet), no setup wizard required.
+
+### Other Channels
+
+**WhatsApp** — QR code scan (no token needed):
+```bash
+velo whatsapp
+# Scan the QR with your phone → done
+```
+
+**Web Dashboard** — browser UI for monitoring and config:
+```bash
+velo dashboard
+# Opens at http://localhost:3333
+```
+
+---
+
+## Configuration
+
+### Interactive Setup Wizard
+
+```bash
 velo setup
-velo chat "Hello!"
 ```
 
-## Telegram Setup (Easiest)
+Guides you through:
+- Choosing an AI provider (NVIDIA recommended)
+- Entering your API key
+- Enabling/disabling channels
+- Setting your agent's name and personality
 
-1. **Get a bot token**: Message [@BotFather](https://t.me/BotFather) on Telegram → `/newbot` → copy token
-2. **Run Velo**: `velo telegram 123456:ABC-DEF...`
-3. **Chat**: Message your bot on Telegram!
+### Manual Config
 
-That's it. No config files, no setup wizard.
-
-Each Telegram user gets their own isolated session (`telegram:12345678`).
-
-## All Commands
-
-### Chat & Memory
 ```bash
-velo chat "What's up?"           # Single message
-velo chat                         # Interactive REPL
-velo remember name=John           # Store fact permanently
-velo recall name                  # Retrieve fact
-velo history                      # View recent messages
-velo sessions                     # List all sessions
-velo clear default                # Clear a session's history
+# Show current config
+velo config show
+
+# Set model
+velo config model nvidia:stepfun-ai/step-3.5-flash
+
+# Set API key
+velo config key nvidia nvapi-YOUR-KEY-HERE
+
+# Set personality
+velo config personality "You are a helpful coding assistant"
+
+# Set any value directly
+velo config set agent.name MyBot
 ```
 
-### Configuration
+Config lives at `~/.velo/config.toml`, keys at `~/.velo/velo.env`.
+
+---
+
+## Managing Running Services
+
+Velo runs as background services once started. Manage them with:
+
 ```bash
-velo config show                  # View current config
-velo config model openai:gpt-4o-mini    # Change model
-velo config key openai sk-xxxxx         # Set API key
-velo config personality "You are..."    # Set personality
-velo config set agent.name MyBot        # Set any value
+# See what's running
+velo service
+
+# Stop everything gracefully
+velo stop
+
+# Restart a specific service
+velo restart telegram
+velo restart webhook
 ```
 
-### Channels
-```bash
-velo start                        # Start webhook + telegram servers
-velo build                        # Build standalone binary
-```
+No more `pkill` commands — Velo handles it cleanly.
 
-### Service Management
-```bash
-velo service                      # List all running services with PIDs
-velo stop                         # Gracefully stop all running services
-velo restart telegram             # Restart a specific service (telegram, webhook, etc.)
-```
+---
 
-### Setup
-```bash
-velo setup                        # Interactive onboarding wizard
-```
+## Memory & Sessions
 
-## Architecture
-
-| Feature | Implementation |
-|---------|----------------|
-| **Startup** | ~200ms |
-| **Persistence** | SQLite (bun:sqlite) |
-| **Memory** | 3-tier (messages, facts, tasks) |
-| **Providers** | NVIDIA, OpenAI, Anthropic, OpenRouter, MiniMax, Ollama |
-| **Channels** | Webhook (HTTP), Telegram, (Discord/Email ready) |
-| **Binary** | 100MB standalone executable |
-| **MCP** | Model Context Protocol (stdio + HTTP) |
-| **Compaction** | FREE auto-setup with local Ollama |
-
-## Message Management
+Every conversation gets its own session. Your agent remembers facts across sessions.
 
 ```bash
-# Session-based conversations
-velo sessions
-  default (17 messages)
-  telegram:12345 (5 messages)
+# Store a permanent fact
+velo remember name=John
+velo remember timezone=UTC
+velo remember prefers_short_responses=true
 
-# View history
+# Recall a fact
+velo recall name
+
+# View session history
 velo history
-  [user]: Hello!
-  [assistant]: Hi there!
 
-# Clear when needed
+# List all sessions
+velo sessions
+
+# Clear a session
 velo clear default
 ```
 
-**Auto-trimming**: Keeps last 50 messages per session (configurable).
+**Telegram:** `/memory`, `/clear`, `/history` work too.
 
-**Facts**: Permanent memory injected into every system prompt.
+---
 
-## Memory Command (All Channels)
+## Voice & Audio
 
-View your agent's complete memory from anywhere:
+Velo speaks and listens natively — no API costs.
 
-**CLI:**
-```bash
-velo memory
+**Telegram voice messages:** Just send a voice memo. Velo transcribes and responds.
+
+**Voice responses:**
+```
+/voice on    # Enable voice mode
+/voice off   # Disable voice mode
+/voice list  # See available voices
+/voice emma  # British female voice
 ```
 
-**Telegram:**
-```
-/memory
-```
+Voices: `bella`, `sarah`, `nicole`, `sky`, `adam`, `michael`, `emma`, `isabella`, `george`, `lewis`
 
-**Webhook API:**
-```bash
-curl http://localhost:3000/memory
-```
+---
 
-**Output:**
-```
-═════════ AGENT MEMORY ═════════
+## Free Session Compaction
 
-📌 FACTS (permanent):
-  name: John
-  timezone: UTC
-  preferences: concise responses
+Sessions auto-compress when they get long (40+ messages) using a **free local AI model** — no API costs.
 
-💬 SESSIONS:
-  default (12 messages)
-  telegram:12345 (8 messages)
-
-═══════════════════════════════
-```
-
-**Also available:**
-- `/clear` on Telegram - clear your conversation history
-- `DELETE /session/:id` on webhook - clear a session
-
-## API Server
+Velo handles everything automatically:
+- Installs [Ollama](https://ollama.ai) if needed
+- Pulls the compression model (qwen2.5:0.5b, ~500MB)
+- Compresses silently in background
 
 ```bash
-velo start
-# → Webhook on port 3000
+# Manual compaction
+velo compact default
 
-# Chat endpoint
-curl -X POST http://localhost:3000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello!", "session": "user1"}'
+# Test compaction with a specific model
+velo compact test qwen2.5:1.5b
 
-# Streaming
-curl -X POST http://localhost:3000/chat/stream \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Tell me a story"}'
-
-# Memory
-curl -X POST http://localhost:3000/remember \
-  -d '{"key": "timezone", "value": "UTC"}'
-
-curl http://localhost:3000/recall/timezone
+# View compaction history
+velo compact status default
 ```
 
-## Config Files
-
-**velo.toml** (auto-created):
-```toml
-[agent]
-name = "Velo"
-personality = "Helpful AI assistant"
-model = "nvidia:stepfun-ai/step-3.5-flash"
-
-[providers.nvidia]
-api_key_env = "NVIDIA_API_KEY"
-base_url = "https://integrate.api.nvidia.com/v1"
-
-[memory]
-path = "./data/velo.db"
-max_context_messages = 50
-
-[channels.webhook]
-enabled = true
-port = 3000
-```
-
-**velo.env** (API keys):
-```
-NVIDIA_API_KEY=nvapi-xxx
-OPENAI_API_KEY=sk-xxx
-```
-
-## Supported Providers
-
-| Provider | Models | Speed | Cost |
-|----------|--------|-------|------|
-| NVIDIA | stepfun-3.5, llama | ⚡ Fast | 💰 Cheap |
-| OpenAI | gpt-4o, gpt-4o-mini | Fast | $$$ |
-| Anthropic | claude-3.5-sonnet | Fast | $$$ |
-| OpenRouter | all models | Varies | Varies |
-| MiniMax | minimax-m2.7 | ⚡⚡ Fastest | 💰 Cheapest |
-| Ollama | llama3.2, etc. | Local | Free |
-
-## Comparison
-
-| Feature | OpenClaw | Nanobot | Velo |
-|---------|----------|---------|------|
-| Startup | 5-10s | <1s | **~200ms** |
-| Config | YAML/MD | Complex | **TOML + CLI** |
-| Persistence | Checkpoints | None | **Full SQLite** |
-| Multi-provider | No | Yes | **Yes** |
-| Single binary | No | Yes | **Yes** |
-| Memory | Partial | None | **3-tier** |
-| Channels | Many | Few | **Extensible** |
-| MCP Support | Yes | No | **Yes (stdio + HTTP)** |
-| Session Compaction | Yes | No | **Yes (FREE local)** |
-| Subagents | No | No | **Yes** |
-| Plugin System | Yes | No | **Yes (npm-based)** |
+---
 
 ## MCP Integration
 
-Velo supports the **Model Context Protocol** (MCP) — use Velo's tools from Claude Desktop, Cursor, or any MCP client.
+Connect Velo to Claude Desktop, Cursor, or any MCP client.
 
-### Claude Desktop Setup
+### Claude Desktop
 
-Add to your Claude config:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
@@ -232,779 +214,59 @@ Add to your Claude config:
 }
 ```
 
-Now Claude Desktop has access to all 91 Velo tools!
+Restart Claude Desktop. All 83 Velo tools are now available.
 
-### Connect External MCP Servers
-
-In chat, connect to MCP servers for additional tools:
-```
-mcp_connect npx -y @modelcontextprotocol/server-filesystem ./data
-mcp_connect npx -y @modelcontextprotocol/server-github
-```
-
-### HTTP Transport
-
-MCP over HTTP for remote access:
+### CLI
 ```bash
-# List tools
-curl http://localhost:3000/mcp/tools
-
-# Call a tool
-curl -X POST http://localhost:3000/mcp/call \
-  -d '{"tool": "web_search", "args": {"query": "hello"}}'
+velo mcp start   # Start MCP server (stdio)
+velo mcp tools    # List available tools
 ```
 
-### CLI Commands
-```bash
-velo mcp start    # Start MCP server (stdio)
-velo mcp tools    # List available MCP tools
-```
+---
 
-## Session Compaction (FREE)
+## Plugins
 
-Velo automatically compresses old messages using **FREE local models** — no API costs!
-
-### How It Works
-
-1. When session hits 40+ messages → triggers compaction
-2. Keeps last 10 messages uncompressed
-3. Summarizes older messages with **local Ollama** model
-4. Stores summary + metadata in SQLite
-
-### Zero Setup Required
-
-Velo handles everything automatically:
-- ✅ **Auto-installs Ollama** if not present
-- ✅ **Wakes Ollama on demand** (starts service when needed)
-- ✅ **Pulls model automatically** (qwen2.5:0.5b, ~500MB)
-- ✅ **Zero config needed** — works out of the box
-
-### CLI Commands
-```bash
-velo compact <session>              # Manual compaction
-velo compact test qwen2.5:0.5b      # Test with specific model
-velo compact status <session>       # View compaction history
-```
-
-### Config (optional)
-```toml
-[compaction]
-enabled = true
-model = "qwen2.5:0.5b"       # FREE, ~500MB
-trigger_threshold = 40        # Compact at 40 messages
-keep_recent = 10              # Keep last 10 uncompressed
-```
-
-### Supported Models (all FREE)
-| Model | Size | Speed | Use Case |
-|-------|------|-------|----------|
-| qwen2.5:0.5b | ~500MB | ⚡ Fastest | Compaction |
-| qwen2.5:1.5b | ~1GB | Fast | Better summaries |
-| llama3.2:1b | ~1.3GB | Fast | General purpose |
-| llama3.2:3b | ~2GB | Medium | High quality |
-
-## Subagent Spawning
-
-Spawn independent agents to work in parallel:
+Extend Velo with npm packages or custom plugins.
 
 ```bash
-# In chat
-spawn_agent "Research the latest AI news and summarize"
-spawn_agent "Analyze the codebase and list all TODOs"
+# Create a plugin scaffold
+velo plugin create my-plugin
 
-# Check status
-check_agent subagent_1
-
-# Wait for completion
-wait_agent subagent_1
-```
-
-Each subagent runs independently with its own session and can use all tools.
-
-## Plugin System (npm-based)
-
-Extend Velo with npm packages or local plugins.
-
-### Create a Plugin
-
-```bash
-velo plugin create slack    # Creates plugins/slack/
-```
-
-Generates:
-```
-plugins/slack/
-├── package.json       # npm package config
-├── velo-plugin.json   # Velo manifest
-├── src/
-│   └── index.ts       # Your skills
-└── README.md
-```
-
-### Install Plugins
-
-```bash
-# From npm
+# Install from npm
 velo plugin install velo-plugin-slack
-velo plugin install @company/velo-plugin-custom
 
-# From local directory
+# Install from local dir
 velo plugin install ./my-plugin
+
+# Manage
+velo plugin list
+velo plugin enable my-plugin
+velo plugin disable my-plugin
+velo plugin uninstall my-plugin
 ```
 
-### Manage Plugins
-
-```bash
-velo plugin list              # List installed plugins
-velo plugin enable slack      # Enable a plugin
-velo plugin disable slack     # Disable a plugin
-velo plugin uninstall slack   # Remove a plugin
-```
-
-### Plugin Manifest
-
-```json
-// velo-plugin.json
-{
-  "name": "velo-plugin-slack",
-  "version": "1.0.0",
-  "skills": ["src/index.ts"],
-  "env": {
-    "SLACK_TOKEN": "Required for Slack API"
-  }
-}
-```
-
-### Publishing to npm
-
-```bash
-cd plugins/slack
-npm publish
-# Users can now: velo plugin install velo-plugin-slack
-```
+---
 
 ## Multi-Agent Orchestration
 
-Spawn specialized agents that
-
-## Self-Improvement Loop
-
-Velo learns from experience and improves over time:
-
-- **Creates new skills** from repeated successful patterns
-- **Enhances existing skills** based on effectiveness
-- **Learns user preferences** with confidence scores
-- **Tracks skill effectiveness** and suggests improvements
-
-### How It Works
-
-1. **Record outcomes** — After each task, record success/failure
-2. **Extract patterns** — Identify reusable approaches from successes
-3. **Create skills** — Auto-generate skills after 3+ similar successes
-4. **Track effectiveness** — Score skills by success rate
-5. **Suggest improvements** — Flag low-effectiveness skills for review
-
-### CLI Commands
-
-```bash
-velo learn report              # Show learning progress
-velo learn patterns             # List learned skill patterns
-velo learn suggest              # Get improvement suggestions
-velo learn preference tone concise  # Learn a user preference
-```
-
-### In Chat
-
-The agent can learn during conversations:
+Spawn parallel subagents for complex tasks:
 
 ```
-User: I prefer concise responses, no filler
-Agent: Got it! I'll remember that.
-[Uses learn skill: learn preference:tone=concise]
-
-User: That worked perfectly!
-Agent: Great! I'll use this approach for similar tasks.
-[Records: outcome=success]
+spawn_agent "Research the latest AI news"
+spawn_agent "Analyze this codebase"
+check_agent agent_1
 ```
 
-### Learned Skills
-
-Auto-created skills are saved to `skills/learned/`:
-
-```
-skills/learned/
-├── learned_research_summaries_abc123.ts
-├── learned_code_review_def456.ts
-└── learned_data_analysis_ghi789.ts
-```
-
-Each learned skill includes:
-- Trigger patterns (regex)
-- Typical approach used
-- Success patterns from previous executions
-- Effectiveness score
-
-### Comparison with Hermes
-
-| Feature | Hermes | Velo |
-|---------|--------|------|
-| Pattern learning | ✅ | ✅ |
-| Skill auto-creation | ✅ | ✅ |
-| User preference learning | ✅ | ✅ |
-| Effectiveness tracking | ✅ | ✅ |
-| Skill enhancement | ✅ | ✅ |
-| Learned skills as files | ❌ | ✅ |
-| CLI learning commands | ❌ | ✅ |
-
-## Project Structure
-
-```
-velo/
-├── src/
-│   ├── index.ts        # CLI entry
-│   ├── agent.ts        # Core agent logic
-│   ├── brain.ts        # LLM interface
-│   ├── memory.ts       # SQLite persistence
-│   ├── config.ts       # TOML parser
-│   ├── scheduler.ts    # Autonomous tasks
-│   ├── skills.ts       # Tool loading
-│   └── channels/
-│       ├── webhook.ts  # HTTP API
-│       └── telegram.ts # Telegram bot
-├── skills/             # Custom skills
-├── data/               # SQLite database
-├── dist/               # Compiled binary
-├── velo.toml           # Config
-└── velo.env            # API keys
-```
-
-## License
-
-MIT
-## Built-in Skills (83 Tools)
-
-Velo comes with 83 pre-built skills organized into 10 categories:
-
-### Web (10 tools)
-- `web_search` - Multi-engine search (Google, DuckDuckGo, Brave)
-- `web_extract` - Extract content from URLs
-- `http_request` - Make HTTP requests
-- `url_shorten` - Shorten URLs
-- `ip_lookup` - IP geolocation
-- `dns_lookup` - DNS queries
-- `rss_read` - Parse RSS feeds
-- `sitemap_parse` - Parse sitemaps
-- `robots_txt` - Read robots.txt
-- `webhook_create` - Create webhook endpoints
-
-### Files (10 tools)
-- `file_read`, `file_write`, `file_append`, `file_list`, `file_delete`
-- `file_exists`, `file_stat`, `dir_create`, `file_watch`, `grep`
-
-### System (12 tools)
-- `run_command`, `process_list`, `process_kill`, `system_info`
-- `cpu_info`, `mem_info`, `uptime`, `hostname`, `whoami`, `date`, `sleep`
-
-### Data (10 tools)
-- `json_parse`, `csv_parse`, `csv_query`, `toml_parse`, `xml_parse`
-- `diff_json`, `validate_json`, `base64_encode`, `base64_decode`
-- `hash_text`, `uuid_generate`
-
-### Productivity (12 tools)
-- `weather_get`, `time_now`, `calculator`, `unit_convert`
-- `timer`, `stopwatch`, `countdown`, `world_clock`
-- `random_number`, `password_gen`, `quote`, `joke`
-
-### Social (8 tools)
-- `github_repo_info`, `github_search`, `github_user_info`
-- `hackernews_top`, `reddit_hot`, `devto_articles`
-- `product_hunt`, `wikipedia`
-
-### Automation (8 tools)
-- `schedule_task`, `schedule_list`, `reminder_set`, `reminder_add`, `reminder_list`
-- `todo_add`, `todo_list`, `note_save`, `note_list`, `habit_track`
-
-### Dev (10 tools)
-- `git_status`, `git_log`, `git_branch`, `git_pull`
-- `npm_install`, `pip_install`, `pip_list`
-- `docker_ps`, `docker_images`, `docker_logs`, `test_run`
-
-### Media (8 tools)
-- `image_info`, `image_resize`, `image_convert`
-- `video_info`, `video_thumbnail`
-- `audio_info`, `audio_convert`, `pdf_to_text`
-
-### AI (5 tools)
-- `text_summarize`, `text_translate`, `code_explain`
-- `sentiment_analyze`, `json_extract`
-
-### Creating Custom Skills
-
-Add a `.ts` file to `skills/`:
-
-```typescript
-import type { Skill } from "../src/types.ts";
-
-export default {
-  name: "my_skill",
-  description: "What it does",
-  async execute(args: Record<string, unknown>) {
-    return "Result";
-  },
-} as Skill;
-```
-
-## Model Pricing (March 2026)
-
-### Local Models (FREE)
-| Model | Input | Output | Context |
-|-------|-------|--------|---------|
-| ollama:llama3.2 | FREE | FREE | 128K |
-| ollama:llama4-scout | FREE | FREE | **10M** |
-| ollama:llama4-maverick | FREE | FREE | 1M |
-| ollama:deepseek-v3 | FREE | FREE | 164K |
-
-### Budget Tier (< $1/M)
-| Model | Input | Output | Context |
-|-------|-------|--------|---------|
-| nvidia:step-3.5-flash | $0.10 | $0.30 | 256K |
-| meta:llama-4-scout | $0.08 | $0.30 | **10M** |
-| google:gemini-3.1-flash | $0.10 | $0.40 | 1M |
-| xai:grok-4.1-fast | $0.20 | $0.50 | 2M |
-| deepseek:v3.2 | $0.27 | $1.10 | 164K |
-| openai:gpt-5.4-nano | $0.20 | $0.80 | 128K |
-
-### Standard Tier ($1-5/M)
-| Model | Input | Output | Context |
-|-------|-------|--------|---------|
-| openai:gpt-5.4 | $2.50 | $15.00 | 1.05M |
-| openai:gpt-5.2 | $1.75 | $14.00 | 400K |
-| google:gemini-3.1-pro | $2.00 | $12.00 | 1M |
-| xai:grok-4.20 | $2.00 | $6.00 | 2M |
-| anthropic:claude-sonnet-4.6 | $3.00 | $15.00 | 200K |
-| moonshot:kimi-k2.5 | $0.60 | $2.50 | 262K |
-
-### Flagship Tier ($5+/M)
-| Model | Input | Output | Context |
-|-------|-------|--------|---------|
-| anthropic:claude-opus-4.6 | $5.00 | $25.00 | 200K |
-| openai:gpt-5.4-pro | $30.00 | $180.00 | 1.05M |
-
-**Example cost:** 1K input + 500 output tokens
-- Budget: ~$0.00025 (0.25μ)
-- Standard: ~$0.005 (5m)
-- Flagship: ~$0.018 (1.8¢)
-
-```bash
-velo models    # Show all 35 models with pricing
-velo usage      # Your actual usage with accurate costs
-```
-
-## Voice Memo Transcription
-
-Velo transcribes voice messages using local Whisper models - **no API costs!**
-
-### Setup
-
-```bash
-# Whisper.cpp is auto-installed on first use
-# Models download automatically (tiny: 75MB, base: 142MB)
-```
-
-### Usage
-
-**Telegram:**
-Just send a voice message - Velo auto-transcribes and responds.
-
-**Chat:**
-```
-transcribe file="voice_memo.m4a"
-transcribe file="meeting.mp3" model="base"  # Better accuracy
-```
-
-### Models
-
-| Model | Size | Speed | Accuracy |
-|-------|------|-------|----------|
-| tiny | 75MB | ~2s | Good for short clips |
-| base | 142MB | ~3s | Better accuracy |
-| small | 466MB | ~5s | Best quality |
-
-### Supported Formats
-
-mp3, wav, m4a, ogg, flac, webm
-
-### How It Works
-
-1. User sends voice message (Telegram) or provides file path (chat)
-2. Velo downloads model if not present
-3. whisper.cpp transcribes locally (CPU, no GPU needed)
-4. Text returned to conversation
-
-**Privacy**: All processing happens locally - audio never leaves your machine.
-
-
-## TTS (Text-to-Speech)
-
-Velo responds with voice messages using **Kokoro TTS** - natural, human-like voices with **zero API costs!**
-
-### Setup
-
-```bash
-# Kokoro auto-installs on first use (pip install kokoro)
-# Models download automatically from HuggingFace (~82MB)
-```
-
-### Telegram Usage
-
-```
-/voice              # Toggle voice mode ON/OFF
-/voice list         # Show all 10 available voices
-/voice Emma         # Set voice to Emma (British female)
-/voice on           # Enable voice mode
-/voice off          # Disable voice mode
-/status             # Shows current voice mode & selected voice
-```
-
-When voice mode is ON, Velo responds with audio messages instead of text.
-
-**Voice preference is saved per user** - set your favorite once and it persists!
-
-### Available Voices
-
-| Voice | Accent | Gender | Style |
-|-------|--------|--------|-------|
-| bella | American | Female | Natural, warm (default) |
-| sarah | American | Female | Clear, professional |
-| nicole | American | Female | Friendly |
-| sky | American | Female | Soft |
-| adam | American | Male | Deep voice |
-| michael | American | Male | Conversational |
-| emma | British | Female | Elegant |
-| isabella | British | Female | Refined |
-| george | British | Male | Authoritative |
-| lewis | British | Male | Casual |
-
-### CLI Usage
-
-```bash
-velo chat "use tts skill with text 'Hello world' and voice bella"
-```
-
-### Technical Details
-
-- **Engine**: Kokoro TTS (VITS-based)
-- **Model Size**: ~82MB total
-- **Speed**: ~0.5s for 5s audio (CPU)
-- **Quality**: Natural, human-like speech
-- **Languages**: English (more coming)
-
-## WhatsApp Channel
-
-Velo supports WhatsApp via the **Baileys** library (same as nanobot/OpenClaw).
-
-### Setup
-
-```bash
-# Start WhatsApp bridge (shows QR code)
-velo whatsapp
-
-# Scan QR code with WhatsApp mobile app
-# Settings > Linked Devices > Link a Device
-
-# After first scan, session is saved for auto-reconnect
-velo whatsapp
-```
-
-### How It Works
-
-1. **Bridge Server** (`bridge/`) - Node.js WebSocket server
-   - Uses @whiskeysockets/baileys for WhatsApp Web API
-   - Generates QR codes for linking
-   - Saves session for persistent connection
-
-2. **Velo Integration** (`src/channels/whatsapp.ts`)
-   - Connects to bridge via WebSocket
-   - Routes messages through Velo agent
-   - Supports all Velo features (TTS, transcription, etc.)
-
-### Architecture
-
-```
-velo whatsapp
-      ↓
-┌─────────────────────┐
-│  Velo WhatsApp CLI   │
-│  (Bun/TypeScript)    │
-└──────────┬──────────┘
-           │ WebSocket
-           ↓
-┌─────────────────────┐
-│  Bridge Server      │
-│  (Node.js/Baileys)  │
-└──────────┬──────────┘
-           │
-           ↓
-      WhatsApp API
-```
-
-### Features
-
-| Feature | Status |
-|---------|--------|
-| Text messages | ✅ |
-| Voice transcription | ✅ |
-| TTS responses | ✅ |
-| Session persistence | ✅ |
-| Multi-user support | ✅ |
-| QR code linking | ✅ |
-| Auto-reconnect | ✅ |
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `velo whatsapp` | Start WhatsApp bridge (shows QR) |
-| `velo whatsapp --status` | Check connection status |
-| `velo whatsapp --logout` | Logout and clear session |
-
-### Comparison with Other Frameworks
-
-| Feature | OpenClaw | Nanobot | Hermes | Velo |
-|---------|----------|---------|--------|------|
-| WhatsApp | ✅ | ✅ | ✅ | ✅ |
-| Telegram | ✅ | ✅ | ✅ | ✅ |
-| Discord | ✅ | ✅ | ✅ | 🔜 |
-| Slack | ✅ | ✅ | ✅ | 🔜 |
-| Email | ✅ | ❌ | ✅ | 🔜 |
-| QR Linking | ✅ | ✅ | ✅ | ✅ |
-| Session Save | ✅ | ✅ | ✅ | ✅ |
-
+Each runs independently with its own session.
 
 ---
 
-## WhatsApp Setup (5 Minutes)
+## Deployment
 
-### Step 1: Start Velo WhatsApp
-
-```bash
-velo whatsapp
-```
-
-### Step 2: Scan QR Code
-
-A QR code will appear in your terminal:
-
-```
-╔══════════════════════════════╗
-║  ████████▄  ▄███████████...  ║
-║  ████   ▀▀  ▀▀   ███████...  ║
-║  ████         ▄██████████...  ║
-║  ████   ▄▄▄▄▄▄   ███████...  ║
-║  ████████▀▀▀▀▀██████████...  ║
-╚══════════════════════════════╝
-```
-
-**On your phone:**
-1. Open **WhatsApp**
-2. Tap **Settings** ⚙️
-3. Tap **Linked Devices**
-4. Tap **Link a Device**
-5. **Scan the QR code** on your screen
-
-### Step 3: Done! ✅
-
-You'll see:
-```
-✓ Connected to WhatsApp!
-Logged in as: Your Name (+1234567890)
-```
-
-Now just message your WhatsApp number and Velo will respond!
-
----
-
-### Daily Usage
-
-| What | How |
-|------|-----|
-| Start | `velo whatsapp` |
-| Check status | `velo whatsapp --status` |
-| Logout | `velo whatsapp --logout` |
-
----
-
-### Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| QR not showing | Make terminal full-screen |
-| Session expired | Scan QR again |
-| Not responding | Restart with `velo whatsapp` |
-
----
-
-**That's it! Just one command + scan QR. No config files, no API keys, no setup wizard.**
-
-
-## Web Dashboard
-
-Velo includes a web UI for easy setup and monitoring.
-
-### Quick Start
+### Linux (systemd) — 24/7
 
 ```bash
-velo dashboard
-# Opens at http://localhost:3333
-```
-
-### Features
-
-| Page | Description |
-|------|-------------|
-| **Overview** | Agent status, stats, quick actions |
-| **Channels** | Connect Telegram, WhatsApp, Webhook |
-| **Configuration** | Set model, personality, API keys |
-| **Sessions** | View all conversation sessions |
-| **Logs** | Real-time activity logs |
-
-### WhatsApp Setup via Dashboard
-
-1. Run `velo dashboard`
-2. Go to **Channels** → Click **Connect** on WhatsApp
-3. Scan the QR code with WhatsApp app
-4. Done! ✅
-
-### Configuration via Dashboard
-
-- Set agent name and personality
-- Choose AI model and provider
-- Add API keys (stored securely)
-- All changes saved to `~/.velo/config.toml`
-
-### White Theme
-
-The dashboard uses a clean, minimal white theme:
-- Black text on white background
-- Simple, readable typography
-- No clutter or distracting colors
-
-
-## Standalone Deployment
-
-Velo runs on **any** Linux, macOS, or Windows machine. No dependencies on Zo or other platforms.
-
-### Install (Any Machine)
-
-```bash
-# Download binary
-curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
-
-# Or build from source
-git clone https://github.com/drakelarson/velo.git
-cd velo
-bun run build
-sudo cp dist/velo /usr/local/bin/
-```
-
-### Dashboard Access
-
-```bash
-# Start dashboard (port 3333)
-velo dashboard
-
-# Access from browser
-http://localhost:3333
-
-# For remote access, use your server's IP
-http://your-server-ip:3333
-```
-
-### Cloud Deployment
-
-Deploy to any VPS or cloud:
-
-```bash
-# Example: DigitalOcean, Linode, AWS EC2, etc.
-ssh user@your-server
-
-# Install
-curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
-
-# Set API key
-echo "NVIDIA_API_KEY=your-key" >> ~/.velo/velo.env
-
-# Start with WhatsApp
-velo whatsapp login
-
-# Dashboard accessible at:
-# http://your-server-ip:3333
-```
-
-### Systemd Service (Linux)
-
-```bash
-# Create systemd service for 24/7 operation
-sudo cat > /etc/systemd/system/velo.service << 'UNIT'
-[Unit]
-Description=Velo AI Agent
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root/.velo
-ExecStart=/usr/local/bin/velo start
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-sudo systemctl enable velo
-sudo systemctl start velo
-```
-
-### Docker
-
-```bash
-# Coming soon - Docker image
-docker run -d \
-  -p 3333:3333 \
-  -p 3000:3000 \
-  -v ~/.velo:/root/.velo \
-  drakelarson/velo:latest
-```
-
----
-
-## Project Status
-
-| Feature | Status |
-|---------|--------|
-| Core Agent | ✅ Complete |
-| Telegram | ✅ Complete |
-| WhatsApp | ✅ Complete |
-| Web Dashboard | ✅ Complete |
-| Voice TTS/STT | ✅ Complete |
-| MCP Integration | ✅ Complete |
-| Session Compaction | ✅ Complete |
-| Plugin System | ✅ Complete |
-| Self-Improvement | ✅ Complete |
-| Multi-Agent Orchestration | ✅ Complete |
-| Docker Image | 🚧 In Progress |
-| Windows Support | 🚧 In Progress |
-
-
-## Production Deployment
-
-For 24/7 operation without manual intervention:
-
-### Linux (systemd)
-```bash
-# Create systemd service
-sudo cat > /etc/systemd/system/velo.service << 'SERVICE'
+sudo cat > /etc/systemd/system/velo.service << 'EOF'
 [Unit]
 Description=Velo AI Agent
 After=network.target
@@ -1020,17 +282,16 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-SERVICE
+EOF
 
-sudo systemctl daemon-reload
 sudo systemctl enable velo
 sudo systemctl start velo
 ```
 
 ### macOS (launchd)
+
 ```bash
-# Create launch agent
-cat > ~/Library/LaunchAgents/com.velo.agent.plist << 'PLIST'
+cat > ~/Library/LaunchAgents/com.velo.agent.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1049,68 +310,148 @@ cat > ~/Library/LaunchAgents/com.velo.agent.plist << 'PLIST'
     <true/>
 </dict>
 </plist>
-PLIST
+EOF
 
 launchctl load ~/Library/LaunchAgents/com.velo.agent.plist
 ```
 
-### Zo Computer (this platform)
-```bash
-# Register as Zo user service (auto-starts on boot)
-# See: https://larsondrake.zo.computer/?t=sites&s=services
-```
+### Zo Computer
 
-## Quick Start Summary
+Velo registers as a native service — auto-starts on boot, survives sleep cycles.
 
-| Task | Command |
-|------|---------|
-| Install | `curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh \| bash` |
-| Start Telegram | `velo telegram YOUR_TOKEN` |
-| Start WhatsApp | `velo whatsapp login` |
-| Start Dashboard | `velo dashboard start` |
-| Chat | `velo chat "Hello"` |
-| View logs | `tail -f /tmp/velo_agent.log` |
-
-
-## One-Command Start
+### Build a Binary
 
 ```bash
-# Set your token (get from @BotFather)
-export TELEGRAM_TOKEN=123456:ABC-DEF...
-
-# Start Velo
-curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/start.sh | bash
+velo build
+# Output: dist/velo (standalone executable)
 ```
 
-That's it! Velo will:
-- Install itself if needed
-- Create config in `~/.velo/`
-- Start the bot
-- Show you the bot username
-
-**Or if already installed:**
-```bash
-velo telegram
-```
+---
 
 ## Troubleshooting
 
 **Bot not responding?**
 ```bash
 # Check if running
-ps aux | grep velo
+velo service
 
 # Check logs
-tail -50 /tmp/velo_bot.log
+tail -50 ~/.velo/velo.log
 
 # Restart
-pkill -f "velo.*telegram"
-velo telegram
+velo stop && velo telegram YOUR_TOKEN
 ```
 
 **Token not found?**
 ```bash
-# Create ~/.velo/velo.env
-echo "TELEGRAM_TOKEN=123456:ABC-DEF..." > ~/.velo/velo.env
+echo "TELEGRAM_TOKEN=123456:ABC-DEF..." >> ~/.velo/velo.env
+velo telegram 123456:ABC-DEF...
 ```
 
+**Need to start fresh?**
+```bash
+velo setup    # Re-run the setup wizard
+```
+
+---
+
+## Reference
+
+### Supported Providers
+
+| Provider | Best For | Speed | Cost |
+|----------|----------|-------|------|
+| **NVIDIA** | General use | ⚡ Fast | 💰 Cheap |
+| **OpenAI** | GPT-4 tasks | Fast | $$$ |
+| **Anthropic** | Claude tasks | Fast | $$$ |
+| **OpenRouter** | All models | Varies | Varies |
+| **MiniMax** | Budget | ⚡⚡ Fastest | 💰 Cheapest |
+| **Ollama** | Local/free | Local | Free |
+
+### Available Commands
+
+```
+Chat & Memory
+  velo chat [msg]          Interactive or single-message chat
+  velo remember <k=v>       Store permanent fact
+  velo recall <key>         Retrieve fact
+  velo history              View recent messages
+  velo sessions             List all sessions
+  velo clear [session]      Clear session history
+
+Configuration
+  velo setup                Interactive setup wizard
+  velo config show          View full config
+  velo config model <m>     Set AI model
+  velo config key <p> <k>   Set API key
+  velo config set <k> <v>   Set any config value
+
+Services
+  velo service              List running services
+  velo stop                 Stop all services
+  velo restart [channel]    Restart a service
+
+Advanced
+  velo compact [session]     Compact session history
+  velo mcp start             Start MCP server
+  velo plugin [cmd]          Manage plugins
+  velo orchestrate [cmd]     Multi-agent workflows
+  velo build                 Build standalone binary
+  velo dashboard             Start web UI
+```
+
+### Skills (83 Built-in Tools)
+
+| Category | Tools |
+|----------|-------|
+| **Web** | search, extract, request, shorten, IP lookup, DNS, RSS, sitemap |
+| **Files** | read, write, append, list, delete, exists, stat, mkdir, watch, grep |
+| **System** | run, process_list, kill, info, cpu, mem, uptime, hostname, whoami, date |
+| **Data** | parse JSON/CSV/TOML/XML, diff, validate, encode, hash, UUID |
+| **Productivity** | weather, time, calc, convert, timer, countdown, password, quote, joke |
+| **Social** | GitHub info/search, Hacker News, Reddit, Dev.to, Product Hunt, Wikipedia |
+| **Dev** | git status/log/branch/pull, npm/pip install, docker ps/images/logs |
+| **Media** | image info/resize/convert, video info/thumbnail, audio, PDF |
+| **AI** | summarize, translate, explain code, sentiment, extract |
+
+---
+
+## Comparison
+
+| | OpenClaw | Nanobot | **Velo** |
+|-|----------|---------|----------|
+| Startup | 5-10s | <1s | **~200ms** |
+| Config | YAML/MD | Complex | **Simple TOML + CLI** |
+| Persistence | Checkpoints | None | **Full SQLite** |
+| Multi-provider | No | Yes | **Yes** |
+| Single binary | No | Yes | **Yes** |
+| Memory | Partial | None | **3-tier** |
+| Session Compaction | Yes | No | **Yes (FREE local)** |
+| MCP Support | Yes | No | **Yes** |
+| Plugins | Yes | No | **Yes (npm)** |
+| Subagents | No | No | **Yes** |
+
+---
+
+## Project Status
+
+| Feature | Status |
+|---------|--------|
+| Core Agent | ✅ |
+| Telegram | ✅ |
+| WhatsApp | ✅ |
+| Web Dashboard | ✅ |
+| Voice (TTS/STT) | ✅ |
+| MCP | ✅ |
+| Session Compaction | ✅ |
+| Plugins | ✅ |
+| Multi-Agent | ✅ |
+| Self-Improvement | ✅ |
+| Docker | 🚧 |
+| Windows | 🚧 |
+
+---
+
+**Install:** `curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash`
+
+**Questions?** Open an issue at [github.com/drakelarson/velo](https://github.com/drakelarson/velo)
