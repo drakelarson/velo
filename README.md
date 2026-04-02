@@ -35,6 +35,7 @@ Then Velo runs as a 24/7 background service.
 | Stop all services | `velo stop` |
 | Check status | `velo service` |
 | Restart a service | `velo restart telegram` |
+| Force start (bypass lock) | `velo telegram --force` |
 
 ---
 
