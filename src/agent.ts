@@ -1,7 +1,7 @@
 import { Memory, ObservationType } from "./memory.ts";
 import { Brain, type ToolCall } from "./brain.ts";
 import { getModelPricing, calculateCost, formatCost } from "./pricing.ts";
-import { Compactor, type CompactorConfig } from "./compactor.ts";
+import { Compactor, type CompactorConfig, OllamaManager } from "./compactor.ts";
 import { loadPersona, buildSystemPromptFromPersona, getActivePersonaName } from "./persona.ts";
 import type { Config, Message, Skill, Tool } from "./types.ts";
 
@@ -496,6 +496,19 @@ When you need to use a tool, the system will handle the tool call automatically.
     
     // Skip if session was too short
     if (messages.length < 2) {
+      return null;
+    }
+
+    // Ensure Ollama is running before reflection
+    try {
+      const ollamaManager = new OllamaManager("http://localhost:11434", "qwen2.5:0.5b");
+      const { ready, error } = await ollamaManager.ensureReady();
+      if (!ready) {
+        console.error("[Agent] Ollama not ready for reflection:", error);
+        return null;
+      }
+    } catch (err) {
+      console.error("[Agent] Failed to initialize OllamaManager:", err);
       return null;
     }
 
