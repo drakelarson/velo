@@ -21,7 +21,7 @@ export interface SchedulerTask {
 
 export interface CompactorConfig {
   enabled: boolean;
-  model: string; // e.g., "ollama:qwen2.5:0.5b", "ollama:llama3.2:1b"
+  model: string; // e.g., "ollama:qwen3:0.6b", "ollama:llama3.2:1b"
   triggerThreshold: number; // messages count trigger
   keepRecent: number; // keep last N messages uncompressed
   targetRatio?: number; // target compression ratio

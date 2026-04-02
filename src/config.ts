@@ -111,7 +111,7 @@ max_context_messages = 50
 
 [compaction]
 enabled = true
-model = "ollama:qwen2.5:0.5b"
+model = "ollama:qwen3:0.6b"
 trigger_threshold = 40
 keep_recent = 10
 ollama_base = "http://localhost:11434"
@@ -141,7 +141,7 @@ export function parseToml(content: string): Config {
     channels: { webhook: { enabled: true, port: 3000 } },
     scheduler: { enabled: false, tasks: [] },
     skills: { directory: "./skills", auto_load: true },
-    compaction: { enabled: false, model: "ollama:qwen2.5:0.5b", triggerThreshold: 40, keepRecent: 10 },
+    compaction: { enabled: false, model: "ollama:qwen3:0.6b", triggerThreshold: 40, keepRecent: 10 },
   };
 
   let currentSection = "";

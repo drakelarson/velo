@@ -1,6 +1,6 @@
 /**
  * Session Compaction System
- * Uses small models (e.g., ollama:qwen2.5:0.5b) to compress conversation history
+ * Uses small models (e.g., ollama:qwen3:0.6b) to compress conversation history
  * Reduces context size without losing important information - FREE with local models
  * 
  * AUTO-SETUP: Automatically installs Ollama and pulls required model if not present
@@ -201,7 +201,7 @@ export class Compactor {
 
   constructor(config: Partial<CompactorConfig> = {}) {
     this.config = {
-      model: config.model || "qwen2.5:0.5b",
+      model: config.model || "qwen3:0.6b",
       triggerThreshold: config.triggerThreshold || 40,
       keepRecent: config.keepRecent || 10,
       ollamaBase: config.ollamaBase || "http://localhost:11434",
@@ -324,7 +324,7 @@ SUMMARY:`;
 }
 
 // CLI helper to test compaction
-export async function testCompaction(model: string = "qwen2.5:0.5b"): Promise<void> {
+export async function testCompaction(model: string = "qwen3:0.6b"): Promise<void> {
   const compactor = new Compactor({
     model,
     triggerThreshold: 5,
