@@ -133,7 +133,7 @@ ${contextIndex}
 ## Available Tools (${this.skills.size} total)
 ${categories}
 
-CRITICAL RULE: You MUST only summarize what is in tool results. Do NOT add any information not in the results. If you are unsure, say "I do not know" or "This was not in the source material." Do NOT make up facts, names, or statistics.
+After receiving tool results, ONLY summarize what is in the results. Do not add any information not in the results.
 
 When you need to use a tool, the system will handle the tool call automatically. Respond naturally.`;
   }
