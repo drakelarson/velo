@@ -812,55 +812,91 @@ async function main() {
     case "restart": {
       // Properly restart: kill old process via lock, clean locks, start fresh
       const channel = args[1] || "telegram";
+      const ourPid = process.pid;
       
       console.log(`\n  ▓▓▓  Restarting Velo ${channel}  ▓▓▓\n`);
+      console.log(`  Our PID: ${ourPid}`);
       
       // 1. Read lock file and kill ONLY that specific PID
       const lockDir = "/tmp/velo-locks";
       const lockFile = `${lockDir}/${channel}.lock`;
-      let killed = false;
       
       if (fs.existsSync(lockFile)) {
         try {
           const content = fs.readFileSync(lockFile, "utf-8");
           const oldPid = parseInt(content.trim());
-          if (!isNaN(oldPid) && oldPid > 0) {
+          if (!isNaN(oldPid) && oldPid > 0 && oldPid !== ourPid) {
             console.log(`  Stopping ${channel} (PID ${oldPid})...`);
             try {
               process.kill(oldPid, 9); // SIGKILL
-              await new Promise(r => setTimeout(r, 500));
               console.log("  ✓ Old process killed");
-              killed = true;
             } catch (e: any) {
               if (e.code !== "ESRCH") {
                 console.log(`  ⚠ Could not kill PID ${oldPid}: ${e.message}`);
               }
             }
+          } else if (oldPid === ourPid) {
+            console.log("  ⚠ Lock PID matches ours - waiting for it to stabilize...");
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        } catch (e) {}
+        
+        // Clean up lock file (after a moment to ensure old process released it)
+        try {
+          fs.unlinkSync(lockFile);
+          console.log("  ✓ Lock cleaned");
+        } catch (e) {}
+      }
+      
+      // 2. Wait for old process to fully die and release resources
+      await new Promise(r => setTimeout(r, 1000));
+      
+      // 3. Verify old process is actually dead before starting new one
+      if (fs.existsSync(lockFile)) {
+        try {
+          const content = fs.readFileSync(lockFile, "utf-8");
+          const lockedPid = parseInt(content.trim());
+          if (!isNaN(lockedPid) && lockedPid > 0 && lockedPid !== ourPid) {
+            console.log(`  ⚠ Old PID ${lockedPid} still alive - forcing kill...`);
+            try {
+              process.kill(lockedPid, 9);
+              await new Promise(r => setTimeout(r, 500));
+            } catch (e) {}
+            try {
+              fs.unlinkSync(lockFile);
+            } catch (e) {}
           }
         } catch (e) {}
       }
       
-      // Also kill any stale bun processes for this channel (but not ourselves)
-      if (!killed) {
-        try {
-          Bun.spawnSync({
-            cmd: ["pkill", "-9", "-f", `bun.*index.*${channel}`],
-            stderr: "pipe",
-          });
-        } catch (e) {}
-      }
-      
-      // 2. Clean up lock file
+      // 4. Double-check no bun processes for this channel are running (exclude our parent)
       try {
-        if (fs.existsSync(lockFile)) {
-          fs.unlinkSync(lockFile);
-          console.log("  ✓ Lock cleaned");
+        const ps = Bun.spawnSync({
+          cmd: ["ps", "aux"],
+          stderr: "ignore",
+        });
+        const output = new TextDecoder().decode(ps.stdout);
+        const lines = output.split("\n").filter(line => 
+          line.includes("bun") && 
+          line.includes("index") && 
+          line.includes(channel) &&
+          !line.includes(` ${ourPid} `) // Don't kill ourselves
+        );
+        for (const line of lines) {
+          const pidMatch = line.match(/^\S+\s+(\d+)/);
+          if (pidMatch) {
+            const pid = parseInt(pidMatch[1]);
+            if (pid !== ourPid && pid > 0) {
+              console.log(`  Force killing stray PID ${pid}...`);
+              try { process.kill(pid, 9); } catch (e) {}
+            }
+          }
         }
       } catch (e) {}
       
       await new Promise(r => setTimeout(r, 500));
       
-      // 3. Get token
+      // 5. Get token
       const token = process.env.TELEGRAM_BOT_TOKEN || "";
       if (!token) {
         console.error("  ✖ TELEGRAM_BOT_TOKEN not set");
@@ -868,11 +904,8 @@ async function main() {
         process.exit(1);
       }
       
-      // 4. Always use "bun run <known-src-path> telegram <token>"
-      // We hardcode /home/workspace/velo since that's where velo source lives on this machine
-      // For portable use, could also try process.cwd() or look for velo source
+      // 6. Start fresh
       const veloSrcPath = "/home/workspace/velo/src/index.ts";
-      
       console.log(`  Starting: bun run ${veloSrcPath} ${channel}`);
       
       const child = Bun.spawn({
