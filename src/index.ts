@@ -869,16 +869,20 @@ async function main() {
       
       console.log(`  Starting with: ${binaryPath}`);
       
-      // 4. Spawn fresh process (detached, not inherited)
+      // 4. Start fresh using the ACTUAL running binary
+      const myPath = process.argv[1] || "/usr/local/bin/velo";
       const token = process.env.TELEGRAM_BOT_TOKEN || "";
       if (!token) {
         console.error("  ✖ TELEGRAM_BOT_TOKEN not set");
         console.error("    Set it in ~/.velo/velo.env or export it");
         process.exit(1);
       }
+      const startCmd = myPath.includes("dist/velo") 
+        ? [myPath, "telegram", token]  // dev mode: ./dist/velo telegram
+        : ["bun", "run", myPath, "telegram", token];  // installed: bun run /path/src/index.ts telegram
       
       const child = Bun.spawn({
-        cmd: [binaryPath, "telegram", token],
+        cmd: startCmd,
         stdout: "inherit",
         stderr: "inherit",
         detached: true,
