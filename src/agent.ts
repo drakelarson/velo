@@ -512,7 +512,7 @@ When you need to use a tool, the system will handle the tool call automatically.
 
     // Ensure Ollama is running before reflection
     try {
-      const ollamaManager = new OllamaManager("http://localhost:11434", "qwen3:0.6b");
+      const ollamaManager = new OllamaManager("http://localhost:11434", "qwen2.5:3b");
       const { ready, error } = await ollamaManager.ensureReady();
       if (!ready) {
         console.error("[Agent] Ollama not ready for reflection:", error);
@@ -550,7 +550,7 @@ If nothing significant happened, respond with: SKIP`;
       const result = await this.brain.thinkWithModel(
         [{ role: "user", content: reflectionPrompt }],
         "You are a concise conversation analyst. Return ONLY the analysis in the exact format requested. No extra text.",
-        "ollama:qwen3:0.6b",
+        "ollama:qwen2.5:3b",
         undefined
       );
 

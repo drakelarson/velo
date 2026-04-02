@@ -180,7 +180,7 @@ Sessions auto-compress when they get long (40+ messages) using a **free local AI
 
 Velo handles everything automatically:
 - Installs [Ollama](https://ollama.ai) if needed
-- Pulls the compression model (qwen3:0.6b, ~500MB)
+- Pulls the compression model (qwen2.5:3b, ~500MB)
 - Compresses silently in background
 
 ```bash

@@ -79,7 +79,7 @@ Examples:
   velo memory stats                    # View memory statistics
   velo memory search "auth bug"        # Search for auth-related bugs
   velo memory observe bugfix "Fixed timeout" "Increased timeout to 120s"
-  velo compact test ollama:qwen3:0.6b  # Test FREE local compaction
+  velo compact test ollama:qwen2.5:3b  # Test FREE local compaction
   velo orchestrate run research_report "AI in 2026"  # Multi-agent workflow
 
 Quick Start:
@@ -312,7 +312,7 @@ async function main() {
       
       if (subCmd === "test") {
         const { testCompaction } = await import("./compactor.ts");
-        const model = args[2] || "ollama:qwen3:0.6b";
+        const model = args[2] || "ollama:qwen2.5:3b";
         await testCompaction(model);
       } else if (subCmd === "status") {
         const history = agent.getCompactionHistory(sessionId);
@@ -332,7 +332,7 @@ async function main() {
         // Manual compaction
         console.log(`Compacting session: ${sessionId}`);
         const { Compactor } = await import("./compactor.ts");
-        const compactorCfg = config.compaction || { enabled: true, model: "ollama:qwen3:0.6b", triggerThreshold: 1, keepRecent: 10 };
+        const compactorCfg = config.compaction || { enabled: true, model: "ollama:qwen2.5:3b", triggerThreshold: 1, keepRecent: 10 };
         const providerCfg = agent.getProviderConfig?.(compactorCfg.model) || {};
         const compactor = new Compactor(compactorCfg, providerCfg);
         

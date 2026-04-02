@@ -358,7 +358,7 @@ max_context_messages = 50
 
 [compaction]
 enabled = true
-model = "ollama:qwen3:0.6b"
+model = "ollama:qwen2.5:3b"
 trigger_threshold = 40
 keep_recent = 10
 ollama_base = "http://localhost:11434"
