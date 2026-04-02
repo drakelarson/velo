@@ -1,8 +1,7 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "docker_images"
-    category: "Dev",,
+  name: "docker_images",
   description: "List Docker images",
   async execute() {
     try {

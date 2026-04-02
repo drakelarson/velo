@@ -20,8 +20,7 @@ const KOKORO_VOICES = {
 const DEFAULT_VOICE = "bella";
 
 export default {
-  name: "tts"
-    category: "Media",,
+  name: "tts",
   description: "Convert text to speech audio using Kokoro TTS (natural sounding). Returns audio file path. Use when user requests voice output or uses /voice command. Args: text (required), voice (optional: bella, sarah, adam, emma, george).",
   
   async execute(args: Record<string, unknown>): Promise<string> {

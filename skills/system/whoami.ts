@@ -1,8 +1,7 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "whoami"
-    category: "System",,
+  name: "whoami",
   description: "Get current user",
   async execute() {
     try {

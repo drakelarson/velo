@@ -1,8 +1,7 @@
 import * as fs from "fs";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "file_read"
-    category: "Files",,
+  name: "file_read",
   description: "Read file contents",
   async execute(args: Record<string, unknown>) {
     const path = args.path || args.args || "";

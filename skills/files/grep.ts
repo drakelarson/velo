@@ -1,8 +1,7 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "grep"
-    category: "Files",,
+  name: "grep",
   description: "Search file contents with ripgrep",
   async execute(args: Record<string, unknown>) {
     const pattern = args.pattern || args.args || "";

@@ -2,8 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "habit_track"
-    category: "Automation",,
+  name: "habit_track",
   description: "Track daily habits",
   async execute(args: Record<string, unknown>) {
     const habit = args.habit || args.args || "";

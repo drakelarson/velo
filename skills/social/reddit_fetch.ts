@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "reddit_fetch"
-    category: "Social",,
+  name: "reddit_fetch",
   description: "Fetch Reddit post or thread. Usage: reddit_fetch <url_or_permalink>",
   
   async execute(args: Record<string, unknown>): Promise<string> {

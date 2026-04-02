@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "clawhub_search"
-    category: "System",,
+  name: "clawhub_search",
   description: "Search ClawHub (clawhub.ai) for skills and get install URLs. Usage: clawhub_search <query>\n\nClawHub is the skill marketplace for OpenClaw agents. This searches their registry to find skills, then extracts the actual source (GitHub or npm) so you can install them with the 'install' skill — no ClawHub CLI needed.",
 
   async execute(args: Record<string, unknown>): Promise<string> {

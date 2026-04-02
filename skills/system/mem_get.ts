@@ -6,8 +6,7 @@ import * as path from "path";
 import { OBSERVATION_TYPES, type ObservationType } from "../../src/memory.ts";
 
 export default {
-  name: "mem-get"
-    category: "System",,
+  name: "mem-get",
   description: "Get full details of a specific observation by ID. Usage: mem-get <id>. Example: mem-get 42",
   
   async execute(args: Record<string, unknown>): Promise<string> {

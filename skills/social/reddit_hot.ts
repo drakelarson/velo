@@ -1,7 +1,6 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "reddit_hot"
-    category: "Social",,
+  name: "reddit_hot",
   description: "Get hot Reddit posts",
   async execute(args: Record<string, unknown>) {
     const subreddit = args.subreddit || args.args || "all";

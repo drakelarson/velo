@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "cron"
-    category: "Automation",,
+  name: "cron",
   description: "Manage autonomous scheduled tasks. Usage: cron <action> [args]\n\nActions:\n  cron list                    - Show all scheduled tasks\n  cron add <name> <interval> <prompt>  - Add a task (e.g. cron add news 1h \"Summarize top AI news\")\n  cron remove <name>          - Remove a task\n  cron run <name>             - Run a task immediately\n\nIntervals: 10s, 5m, 1h, 6h, 1d",
   async execute(args: Record<string, unknown>): Promise<string> {
     const action = String(args.action || args.args || "").trim();

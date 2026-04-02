@@ -6,8 +6,7 @@ import * as path from "path";
 import { OBSERVATION_TYPES, type ObservationType } from "../../src/memory.ts";
 
 export default {
-  name: "mem-search"
-    category: "System",,
+  name: "mem-search",
   description: "Search agent memory for past observations, decisions, bugfixes, and learnings. Usage: mem-search <query> [type] [limit]. Types: decision, bugfix, feature, discovery, gotcha, how-it-works, trade-off, change. Examples: mem-search 'auth bug', mem-search 'database' bugfix 5",
   
   async execute(args: Record<string, unknown>): Promise<string> {

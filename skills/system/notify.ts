@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "notify"
-    category: "System",,
+  name: "notify",
   description:
     "Send a message or notification to the user across active channels. Usage: notify <message>. This will attempt to reach the user via Telegram, webhook, or whichever channel is available. Use this to proactively update the user without waiting for them to ask.",
 

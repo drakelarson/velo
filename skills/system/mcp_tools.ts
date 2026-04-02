@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "mcp_tools"
-    category: "System",,
+  name: "mcp_tools",
   description: "List all available MCP tools from connected servers. Shows tool names, descriptions, and parameters.",
   
   async execute(args: Record<string, unknown>): Promise<string> {

@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "tt_fetch"
-    category: "Social",,
+  name: "tt_fetch",
   description: "Fetch TikTok video metadata, description, and audio info. Usage: tt_fetch <url_or_video_id>",
   
   async execute(args: Record<string, unknown>): Promise<string> {

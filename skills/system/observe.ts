@@ -6,8 +6,7 @@ import * as path from "path";
 import { OBSERVATION_TYPES, type ObservationType } from "../../src/memory.ts";
 
 export default {
-  name: "observe"
-    category: "System",,
+  name: "observe",
   description: "Record an observation (structured learning) for cross-session memory. Usage: observe <type>:<title>|<narrative>[|facts][|concepts]. Types: decision, bugfix, feature, discovery, gotcha, how-it-works, trade-off, change. Example: observe bugfix:Fixed auth timeout|Increased timeout to 120s|auth,timeout",
   
   async execute(args: Record<string, unknown>): Promise<string> {

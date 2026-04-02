@@ -1,7 +1,6 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "time_now"
-    category: "Productivity",,
+  name: "time_now",
   description: "Get current time",
   async execute(args: Record<string, unknown>) {
     const tz = args.timezone || args.args || "UTC";

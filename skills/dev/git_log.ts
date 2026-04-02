@@ -1,8 +1,7 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "git_log"
-    category: "Dev",,
+  name: "git_log",
   description: "Get recent commits",
   async execute(args: Record<string, unknown>) {
     const path = args.path || args.args || ".";

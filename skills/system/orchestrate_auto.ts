@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "orchestrate_auto"
-    category: "System",,
+  name: "orchestrate_auto",
   description: "Let AI automatically choose the best workflow and orchestrate multiple agents. Use for any complex multi-step task. Usage: orchestrate_auto task=\"your complex task\"",
   
   async execute(args: Record<string, unknown>): Promise<string> {

@@ -1,7 +1,6 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "web_extract"
-    category: "Web",,
+  name: "web_extract",
   description: "Extract content from URLs as markdown",
   async execute(args: Record<string, unknown>) {
     const url = args.action || args.url || args.args || "";

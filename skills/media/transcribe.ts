@@ -147,8 +147,7 @@ async function ensureWhisperCpp(): Promise<string> {
 }
 
 export default {
-  name: "transcribe"
-    category: "Media",,
+  name: "transcribe",
   description: "Transcribe audio files to text using local Whisper model. Use when user sends audio/voice memo. Args: file (path or URL), language (optional), model (tiny/base/small).",
   
   async execute(args: Record<string, unknown>): Promise<string> {

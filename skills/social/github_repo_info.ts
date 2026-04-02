@@ -1,7 +1,6 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "github_repo_info"
-    category: "Social",,
+  name: "github_repo_info",
   description: "Get GitHub repository info",
   async execute(args: Record<string, unknown>) {
     const repo = args.repo || args.args || "";

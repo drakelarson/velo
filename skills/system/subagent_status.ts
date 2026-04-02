@@ -1,8 +1,7 @@
 import type { Skill } from "../src/types.ts";
 
 export default {
-  name: "subagent_status"
-    category: "System",,
+  name: "subagent_status",
   description: "Check the status and output of a subagent. Usage: subagent_status <id>",
   
   async execute(args: Record<string, unknown>): Promise<string> {

@@ -5,8 +5,7 @@ import * as os from "os";
 import * as path from "path";
 
 export default {
-  name: "learn"
-    category: "System",,
+  name: "learn",
   description: "CRITICAL: Use this tool whenever the user expresses a preference, liking, or dislike. Examples: 'I like X', 'I prefer Y', 'I want Z'. Action format: preference:key=value (e.g., preference:language=rust)",
   
   async execute(args: Record<string, unknown>): Promise<string> {

@@ -1,8 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "yt_fetch"
-    category: "Social",,
+  name: "yt_fetch",
   description: "Fetch YouTube video metadata and transcript. Usage: yt_fetch <video_id_or_url>",
   
   async execute(args: Record<string, unknown>): Promise<string> {

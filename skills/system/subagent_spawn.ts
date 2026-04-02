@@ -4,8 +4,7 @@ import { spawn } from "child_process";
 const activeSubagents: Map<string, { process: ReturnType<typeof spawn>; task: string; status: string }> = new Map();
 
 export default {
-  name: "subagent_spawn"
-    category: "System",,
+  name: "subagent_spawn",
   description: "Spawn a subagent to handle a task in parallel. Use this for tasks that can be done independently. Usage: subagent_spawn <task_description> [options]. Options: --model=<model>, --timeout=<seconds>, --id=<custom_id>. Returns subagent ID for tracking.",
   
   async execute(args: Record<string, unknown>): Promise<string> {

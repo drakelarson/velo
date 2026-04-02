@@ -7,8 +7,7 @@ function formatBytes(n: number): string {
   return `${n.toFixed(2)} ${units[i]}`;
 }
 export default {
-  name: "system_info"
-    category: "System",,
+  name: "system_info",
   description: "Get system information",
   async execute() {
     const totalMem = os.totalmem();

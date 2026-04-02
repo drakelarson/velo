@@ -2,8 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "file_write"
-    category: "Files",,
+  name: "file_write",
   description: "Write content to file",
   async execute(args: Record<string, unknown>) {
     const filePath = args.path || args.args || "";
