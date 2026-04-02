@@ -293,6 +293,31 @@ Docs: https://github.com/drakelarson/velo
       fs.mkdirSync(VELO_HOME, { recursive: true });
     }
 
+    // Create skills directory and symlink to built-in skills
+    const skillsDir = path.join(VELO_HOME, "skills");
+    if (!fs.existsSync(skillsDir)) {
+      fs.mkdirSync(skillsDir, { recursive: true });
+      // If we have built-in skills in the current install, symlink them
+      const builtinSkills = path.join(process.cwd(), "skills");
+      if (fs.existsSync(builtinSkills)) {
+        for (const entry of fs.readdirSync(builtinSkills)) {
+          const src = path.join(builtinSkills, entry);
+          const dest = path.join(skillsDir, entry);
+          if (!fs.existsSync(dest)) {
+            fs.symlinkSync(src, dest);
+          }
+        }
+        console.log(`  ✓ Symlinked built-in skills to ${skillsDir}`);
+      }
+    }
+
+    // Create my-skills directory for user-installed skills
+    const mySkillsDir = path.join(VELO_HOME, "my-skills");
+    if (!fs.existsSync(mySkillsDir)) {
+      fs.mkdirSync(path.join(mySkillsDir, "skills"), { recursive: true });
+      console.log(`  ✓ Created my-skills directory at ${mySkillsDir}`);
+    }
+
     // Build env file
     const envLines: string[] = [];
     if (apiKey && provider.apiKeyEnv) {
