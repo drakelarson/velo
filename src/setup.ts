@@ -113,6 +113,21 @@ const PROVIDERS = [
   },
 ];
 
+const providerModels: Record<string, string[]> = {
+  nvidia: ["meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/nemotron-3-70b", "deepseek/deepseek-r1", "moonshot/kimi-k2.5"],
+  openai: ["gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro", "gpt-5.3-instant", "gpt-oss-120b"],
+  anthropic: ["claude-sonnet-4.6", "claude-opus-4.6", "claude-haiku-4.5"],
+  google: ["gemini-3.1-pro", "gemini-3.1-flash", "gemini-3.0-flash", "gemini-2.5-pro"],
+  openrouter: ["openrouter/auto", "openrouter/anthropic/claude-sonnet-4.6", "openrouter/google/gemini-3.1-pro", "openrouter/xai/grok-4.20"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner", "deepseek-v3.2", "deepseek-v3.2-speciale"],
+  groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-4-scout-17b", "gpt-oss-120b", "compound"],
+  cerebras: ["llama3.1-8b", "llama3.3-70b", "gpt-oss-120b", "qwen-3-235b"],
+  huggingface: ["meta-llama/Llama-3.3-70B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "mistralai/Mistral-Small-24B"],
+  azure: ["gpt-5.4-mini", "gpt-5.4-pro", "claude-sonnet-4.6", "deepseek-v3.2"],
+  minimax: ["minimax/m2.7", "minimax/m2.7-fast", "minimax/m2.5", "minimax/m2.5-fast"],
+  ollama: ["llama3.2", "llama3.3:70b", "llama4-scout", "qwen2.5", "gemma3", "deepseek-v3", "mistral"],
+};
+
 class SetupWizard {
   private rl: readline.Interface;
 
