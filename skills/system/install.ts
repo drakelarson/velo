@@ -9,7 +9,7 @@ export default {
   description: "Install a Velo plugin or skill from a URL or package name. Usage: install <source>\n\nSources supported:\n  - GitHub repo URL: https://github.com/user/velo-plugin-name\n  - npm package: velo-plugin-somepackage\n  - Local path: /path/to/skill\n\nExample: install https://github.com/user/velo-plugin-foo",
 
   async execute(args: Record<string, unknown>): Promise<string> {
-    const input = String(args.action || args.args || "").trim();
+    const input = String(args.url || args.action || args.args || "").trim();
     if (!input) {
       return `Usage: install <source>\n\nSources:\n  GitHub URL - https://github.com/user/velo-plugin-name\n  npm package - velo-plugin-somepackage\n  local path - /path/to/skill`;
     }
@@ -29,6 +29,10 @@ export default {
       // GitHub URL
       else if (input.includes("github.com")) {
         return installFromGitHub(input, pluginsDir);
+      }
+      // Raw skill URL (ends in .md, .ts, .js)
+      else if (input.match(/^https?:\/\/.*\.(md|ts|js)$/i)) {
+        return installFromUrl(input, skillsDir);
       }
       // npm package
       else if (!input.startsWith("/") && !input.includes(".")) {
@@ -171,4 +175,27 @@ function installFromLocal(sourcePath: string, pluginsDir: string, skillsDir: str
   }
 
   return `✅ Installed "${name}" from local path\n\nLocation: ${destPath}\n\nRestart the bot to load.`;
+}
+
+function installFromUrl(url: string, skillsDir: string): string {
+  // Extract filename from URL
+  const filename = url.split("/").pop() || "downloaded-skill";
+  const destPath = path.join(skillsDir, filename);
+
+  console.error(`[install] Downloading skill from ${url}...`);
+
+  try {
+    execSync(`curl -fsSL "${url}" -o "${destPath}"`, { stdio: "pipe" });
+    
+    // Verify it's a valid skill file
+    const content = fs.readFileSync(destPath, "utf-8");
+    if (!content.includes("name:") && !content.includes("export default")) {
+      fs.unlinkSync(destPath);
+      return `Downloaded file doesn't look like a valid skill.\n\nExpected frontmatter (---name:---) or export default.`;
+    }
+
+    return `✅ Installed skill from URL\n\nLocation: ${destPath}\n\nRestart the bot to load the new skill.`;
+  } catch (err: any) {
+    return `Failed to download from ${url}: ${err.message}`;
+  }
 }
