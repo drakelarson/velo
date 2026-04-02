@@ -4,22 +4,114 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { getVeloHome } from "./config.ts";
-import type { Config } from "./types.ts";
 
 const VELO_HOME = getVeloHome();
 const CONFIG_PATH = path.join(VELO_HOME, "config.toml");
 const ENV_PATH = path.join(VELO_HOME, "velo.env");
 
-interface SetupAnswers {
-  agentName: string;
-  personality: string;
-  model: string;
-  provider: string;
-  apiKey: string;
-  telegramToken: string;
-  webhookEnabled: boolean;
-  webhookPort: number;
-}
+// All supported providers with their configs
+const PROVIDERS = [
+  {
+    id: "nvidia",
+    name: "NVIDIA",
+    desc: "Free tier, best quality/cost",
+    models: ["nvidia/llama-3.1-nemotron-70b-instruct", "nvidia/llama-3.3-70b-instruct", "nvidia/QWEN-32B", "nvidia/DeepSeek-R1"],
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    apiKeyEnv: "NVIDIA_API_KEY",
+    free: true,
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    desc: "GPT-4o, o-series, Sora",
+    models: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "o3-mini", "o1-mini"],
+    baseUrl: "https://api.openai.com/v1",
+    apiKeyEnv: "OPENAI_API_KEY",
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    desc: "Claude 3.5 Sonnet, 3.7, Opus",
+    models: ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-7-sonnet-20250514", "claude-opus-4-5-20250122"],
+    baseUrl: "https://api.anthropic.com/v1",
+    apiKeyEnv: "ANTHROPIC_API_KEY",
+  },
+  {
+    id: "google",
+    name: "Google",
+    desc: "Gemini 2.0 Flash, Pro, 2.5",
+    models: ["gemini-2.0-flash-exp", "gemini-2.0-flash", "gemini-2.0-pro-exp", "gemini-3.0-flash-exp", "gemini-3.1-flash", "gemini-3.1-pro"],
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    apiKeyEnv: "GOOGLE_API_KEY",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    desc: "200+ models, unified API",
+    models: ["openrouter/auto", "openrouter/google/gemini-2.0-flash-exp", "openrouter/anthropic/claude-3.5-sonnet", "openrouter/deepseek/deepseek-chat-v3-0324"],
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKeyEnv: "OPENROUTER_API_KEY",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    desc: "V3, R1 reasoning, cheap",
+    models: ["deepseek-chat-v3-0324", "deepseek-reasoner-v3-0324"],
+    baseUrl: "https://api.deepseek.com/v1",
+    apiKeyEnv: "DEEPSEEK_API_KEY",
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    desc: "Fast inference, Llama 3.3",
+    models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+    baseUrl: "https://api.groq.com/openai/v1",
+    apiKeyEnv: "GROQ_API_KEY",
+  },
+  {
+    id: "cerebras",
+    name: "Cerebras",
+    desc: "Fastest inference, cheapest",
+    models: ["llama-3.3-70b", "qwen-2.5-32b"],
+    baseUrl: "https://api.cerebras.ai/v1",
+    apiKeyEnv: "CEREBRAS_API_KEY",
+  },
+  {
+    id: "huggingface",
+    name: "Hugging Face",
+    desc: "Inference API, 1000s of models",
+    models: ["meta-llama/Llama-3.3-70B-Instruct", "mistralai/Mistral-7B-Instruct", "deepseek-ai/DeepSeek-V3"],
+    baseUrl: "https://api-inference.huggingface.co/v1",
+    apiKeyEnv: "HUGGINGFACE_API_KEY",
+  },
+  {
+    id: "azure",
+    name: "Azure OpenAI",
+    desc: "Enterprise, custom deployments",
+    models: ["gpt-4o-mini", "gpt-4o", "claude-3.5-sonnet"],
+    baseUrl: "", // User provides full endpoint
+    apiKeyEnv: "AZURE_OPENAI_API_KEY",
+    needsEndpoint: true,
+  },
+  {
+    id: "ollama",
+    name: "Ollama",
+    desc: "Local models (free)",
+    models: ["llama3.2", "llama3.3", "qwen2.5", "deepseek-r1", "mistral"],
+    baseUrl: "http://localhost:11434/v1",
+    apiKeyEnv: "",
+    local: true,
+  },
+  {
+    id: "custom",
+    name: "Custom Endpoint",
+    desc: "LM Studio, vLLM, etc.",
+    models: ["any"],
+    baseUrl: "", // User provides
+    apiKeyEnv: "CUSTOM_API_KEY",
+    needsEndpoint: true,
+  },
+];
 
 class SetupWizard {
   private rl: readline.Interface;
@@ -67,12 +159,6 @@ class SetupWizard {
     return isNaN(port) ? d : port;
   }
 
-  private printHeader(text: string) {
-    console.log(`\n╔${"═".repeat(text.length + 4)}╗`);
-    console.log(`║  ${text}  ║`);
-    console.log(`╚${"═".repeat(text.length + 4)}╝`);
-  }
-
   private printStep(num: number, total: number, text: string) {
     console.log(`\n┌─[${num}/${total}] ${text}`);
     console.log("└───────────────────────────────────────");
@@ -87,41 +173,49 @@ class SetupWizard {
 
     // Step 1: Agent Identity
     this.printStep(1, 5, "Agent Identity");
-    const agentName = await this.ask("  Name your agent: ");
+    const agentName = await this.ask("  Name your agent: ") || "Velo";
     const personality = await this.ask("  Personality (optional): ") || "Helpful, concise, autonomous AI assistant";
 
     // Step 2: Model Provider
     this.printStep(2, 5, "AI Provider");
-    const providers = [
-      "NVIDIA (free tier available, best quality/cost)",
-      "OpenAI (GPT-4o, GPT-4o-mini)",
-      "Anthropic (Claude 3.5 Sonnet)",
-      "OpenRouter (50+ models, unified API)",
-      "Minimax (cheap, fast)",
-    ];
-    const providerIdx = await this.askChoice("Select your AI provider", providers, 0);
-    const providerKeys = ["nvidia", "openai", "anthropic", "openrouter", "minimax"];
-    const providerModels: Record<string, string[]> = {
-      nvidia: ["nvidia/llama-3.1-nemotron-70b-instruct", "nvidia/llama-3.3-70b-instruct", "nvidia/QA003-32b"],
-      openai: ["openai/gpt-4o-mini", "openai/gpt-4o"],
-      anthropic: ["anthropic/claude-3-5-sonnet-20241022", "anthropic/claude-3-5-haiku-20241022"],
-      openrouter: ["openrouter/auto", "openrouter/google/gemini-2.0-flash-exp", "openrouter/anthropic/claude-3-haiku"],
-      minimax: ["minimax/minimax-2.0-flash", "minimax/any"],
-    };
-    const provider = providerKeys[providerIdx];
-    const models = providerModels[provider] || [];
-    const modelIdx = await this.askChoice("Select model", models, 0);
-    const model = models[modelIdx];
+    const providerOptions = PROVIDERS.map(p => `${p.name} — ${p.desc}${p.free ? " [FREE]" : ""}`);
+    const providerIdx = await this.askChoice("Select your AI provider", providerOptions, 0);
+    const provider = PROVIDERS[providerIdx];
 
-    // Step 3: API Key
-    this.printStep(3, 5, "API Key");
-    console.log(`  Provider: ${provider}`);
-    console.log(`  Model: ${model}`);
-    const apiKeyLabel = provider.toUpperCase() + "_API_KEY";
-    const apiKey = await this.ask(`  Enter your ${provider} API key: `);
-    if (!apiKey) {
-      console.log("  ⚠ No API key provided. You can set it later with:");
-      console.log(`     velo config key ${provider} YOUR_KEY`);
+    // Pick model
+    let model: string;
+    if (provider.models.length === 1) {
+      model = provider.models[0];
+      console.log(`  Model: ${model}`);
+    } else {
+      const modelIdx = await this.askChoice("Select model", provider.models, 0);
+      model = provider.models[modelIdx];
+    }
+
+    // Step 3: API Key / Endpoint
+    this.printStep(3, 5, provider.local ? "Local Setup" : "API Key");
+    
+    let apiKey = "";
+    let customBaseUrl = provider.baseUrl;
+
+    if (provider.needsEndpoint) {
+      customBaseUrl = await this.ask("  Enter your API endpoint URL: ") || provider.baseUrl;
+      apiKey = await this.ask("  Enter your API key: ") || "";
+    } else if (provider.local) {
+      console.log("  ✓ No API key needed for local models");
+      console.log("  Make sure Ollama is running: ollama serve");
+      if (model === "any") {
+        model = await this.ask("  Enter model name to use: ") || "llama3.2";
+      }
+    } else {
+      console.log(`  Provider: ${provider.name}`);
+      console.log(`  Model: ${model}`);
+      apiKey = await this.ask(`  Enter your ${provider.name} API key: `) || "";
+    }
+
+    if (!apiKey && !provider.local) {
+      console.log("  ⚠ No API key provided. Set it later with:");
+      console.log(`     velo config key ${provider.id} YOUR_KEY`);
     }
 
     // Step 4: Telegram
@@ -129,26 +223,26 @@ class SetupWizard {
     const hasTelegram = await this.askYesNo("Do you want to enable Telegram bot?", true);
     let telegramToken = "";
     if (hasTelegram) {
-      console.log("  1. Create a bot: Message @BotFather on Telegram");
-      console.log("  2. Get your bot token (e.g., 123456:ABC-DEF...)");
-      telegramToken = await this.ask("  Enter your Telegram bot token: ");
+      console.log("  1. Message @BotFather on Telegram → /newbot");
+      console.log("  2. Copy your bot token (e.g., 123456:ABC-DEF...)");
+      telegramToken = await this.ask("  Enter your Telegram bot token: ") || "";
       if (!telegramToken) {
-        console.log("  ⚠ No token provided. Enable later with: velo telegram YOUR_TOKEN");
+        console.log("  ⚠ No token. Start later: velo telegram YOUR_TOKEN");
       }
     }
 
     // Step 5: Webhook
     this.printStep(5, 5, "Webhook Server");
-    const webhookEnabled = await this.askYesNo("Enable webhook server?", true);
-    const webhookPort = await this.askPort("Webhook port", 3000);
+    const webhookEnabled = await this.askYesNo("Enable webhook/API server?", true);
+    const webhookPort = await this.askPort("Port", 3000);
 
     // Summary
     console.log("\n╔══════════════════════════════════════╗");
     console.log("║           Setup Summary              ║");
     console.log("╚══════════════════════════════════════╝");
-    console.log(`  Agent Name:    ${agentName || "Velo"}`);
+    console.log(`  Agent Name:    ${agentName}`);
     console.log(`  Personality:   ${personality}`);
-    console.log(`  Provider:      ${provider}`);
+    console.log(`  Provider:      ${provider.name}`);
     console.log(`  Model:         ${model}`);
     console.log(`  Telegram:      ${telegramToken ? "✓ Enabled" : "✗ Disabled"}`);
     console.log(`  Webhook:       ${webhookEnabled ? `✓ Enabled (port ${webhookPort})` : "✗ Disabled"}`);
@@ -161,11 +255,9 @@ class SetupWizard {
       return;
     }
 
-    // Write configuration
-    await this.saveConfig({ agentName, personality, model, provider, apiKey, telegramToken, webhookEnabled, webhookPort });
-
-    // Register service
-    await this.registerService(telegramToken, webhookEnabled, webhookPort);
+    // Save
+    await this.saveConfig({ agentName, personality, model, provider, apiKey, telegramToken, webhookEnabled, webhookPort, customBaseUrl });
+    await this.registerService(telegramToken);
 
     console.log(`
 ╔══════════════════════════════════════╗
@@ -173,69 +265,52 @@ class SetupWizard {
 ╚══════════════════════════════════════╝
 
 Quick start:
-  velo chat "Hello!"                    # Test with chat
-  velo telegram ${telegramToken ? "(already running)" : "<token>"}   # Start Telegram bot
+  velo chat "Hello!"                    # Test
+  velo telegram ${telegramToken ? "(already set up)" : "<token>"}   # Start Telegram
 
-Documentation: https://github.com/drakelarson/velo
+Docs: https://github.com/drakelarson/velo
 `);
 
     this.rl.close();
   }
 
-  private async saveConfig(answers: SetupAnswers): Promise<void> {
-    // Ensure VELO_HOME exists
+  private async saveConfig({ agentName, personality, model, provider, apiKey, telegramToken, webhookEnabled, webhookPort, customBaseUrl }: any): Promise<void> {
     if (!fs.existsSync(VELO_HOME)) {
       fs.mkdirSync(VELO_HOME, { recursive: true });
     }
 
-    // Save API key to velo.env
-    const envContent = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf-8") : "";
-    const envLines = envContent.split("\n").filter((line) => {
-      if (!line.trim()) return false;
-      const key = line.split("=")[0]?.trim();
-      return key !== "TELEGRAM_BOT_TOKEN"; // Keep telegram token separate
-    });
-
-    if (answers.apiKey) {
-      const envKey = answers.provider.toUpperCase() + "_API_KEY";
-      envLines.push(`${envKey}=${answers.apiKey}`);
+    // Build env file
+    const envLines: string[] = [];
+    if (apiKey && provider.apiKeyEnv) {
+      envLines.push(`${provider.apiKeyEnv}=${apiKey}`);
+    }
+    if (telegramToken) {
+      envLines.push(`TELEGRAM_BOT_TOKEN=${telegramToken}`);
     }
 
-    if (answers.telegramToken) {
-      envLines.push(`TELEGRAM_BOT_TOKEN=${answers.telegramToken}`);
+    if (envLines.length > 0) {
+      fs.writeFileSync(ENV_PATH, envLines.join("\n") + "\n", "utf-8");
+      console.log(`  ✓ Saved keys to ${ENV_PATH}`);
     }
 
-    fs.writeFileSync(ENV_PATH, envLines.join("\n") + "\n", "utf-8");
-    console.log(`  ✓ Saved API keys to ${ENV_PATH}`);
+    // Build config with ALL providers
+    let providersToml = "";
+    for (const p of PROVIDERS) {
+      if (p.id === "ollama" || p.id === "custom") continue; // Skip these in default config
+      providersToml += `
+[providers.${p.id}]
+api_key_env = "${p.apiKeyEnv}"${p.baseUrl ? `\nbase_url = "${p.baseUrl}"` : ""}`;
+    }
 
-    // Generate config.toml
     const configContent = `# Velo Agent Configuration
+# Generated by velo setup
 
 [agent]
-name = "${answers.agentName || "Velo"}"
-personality = "${answers.personality || "Helpful, concise, autonomous AI assistant"}"
-model = "${answers.provider}:${answers.model}"
+name = "${agentName}"
+personality = "${personality}"
+model = "${provider.id}:${model}"
 
-[providers.${answers.provider}]
-api_key_env = "${answers.provider.toUpperCase()}_API_KEY"
-
-[providers.nvidia]
-api_key_env = "NVIDIA_API_KEY"
-base_url = "https://integrate.api.nvidia.com/v1"
-
-[providers.openai]
-api_key_env = "OPENAI_API_KEY"
-
-[providers.anthropic]
-api_key_env = "ANTHROPIC_API_KEY"
-
-[providers.openrouter]
-api_key_env = "OPENROUTER_API_KEY"
-base_url = "https://openrouter.ai/api/v1"
-
-[providers.minimax]
-api_key_env = "MINIMAX_API_KEY"
-base_url = "https://api.minimaxi.com/v1"
+${providersToml}
 
 [memory]
 type = "sqlite"
@@ -250,11 +325,11 @@ keep_recent = 10
 ollama_base = "http://localhost:11434"
 
 [channels.webhook]
-enabled = ${answers.webhookEnabled}
-port = ${answers.webhookPort}
+enabled = ${webhookEnabled}
+port = ${webhookPort}
 
 [channels.telegram]
-enabled = ${!!answers.telegramToken}
+enabled = ${!!telegramToken}
 token_env = "TELEGRAM_BOT_TOKEN"
 
 [scheduler]
@@ -269,42 +344,19 @@ auto_load = true
     console.log(`  ✓ Saved config to ${CONFIG_PATH}`);
   }
 
-  private async registerService(telegramToken: string, webhookEnabled: boolean, webhookPort: number): Promise<void> {
-    console.log("\n┌─ Registering as Service");
+  private async registerService(telegramToken: string): Promise<void> {
+    console.log("\n┌─ Service Registration");
     console.log("└───────────────────────────────────────");
 
-    // Detect platform
     const isZo = !!process.env.ZO_CLIENT_IDENTITY_TOKEN;
     const isSystemd = fs.existsSync("/run/systemd/system");
-    const hasSupervisor = fs.existsSync("/etc/supervisord.conf") || fs.existsSync("/etc/supervisor");
 
     if (isZo) {
-      // Zo: register via Zo's service system (detected via env var)
-      await this.registerZoService(telegramToken);
+      console.log("  ✓ Zo Computer detected");
+      console.log("  ℹ Run 'velo telegram <token>' to auto-register as service");
     } else if (isSystemd) {
-      await this.registerSystemdService(telegramToken);
-    } else if (hasSupervisor) {
-      await this.registerSupervisorService(telegramToken);
-    } else {
-      console.log("  ⚠ Could not detect service manager.");
-      console.log("  To run Velo 24/7, manually configure systemd or supervisord.");
-      console.log("  Or run: nohup velo telegram <token> &");
-    }
-  }
-
-  private async registerZoService(telegramToken: string): Promise<void> {
-    console.log("  ✓ Detected Zo Computer environment");
-
-    if (telegramToken) {
-      // Use Zo's API to register service
-      // Note: This requires the zo CLI or API access
-      console.log("  ℹ Velo will auto-register on first run with 'velo telegram <token>'");
-      console.log("  ℹ On Zo, long-running services should use 'register_user_service'");
-    }
-  }
-
-  private async registerSystemdService(telegramToken: string): Promise<void> {
-    const unitContent = `[Unit]
+      const unitPath = "/etc/systemd/system/velo.service";
+      const content = `[Unit]
 Description=Velo AI Agent
 After=network.target
 
@@ -320,48 +372,28 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 `;
-
-    const unitPath = "/etc/systemd/system/velo.service";
-    try {
-      fs.writeFileSync(unitPath, unitContent);
-      console.log(`  ✓ Created systemd unit: ${unitPath}`);
-      console.log("  Run: sudo systemctl enable --now velo");
-    } catch (e) {
-      console.log(`  ⚠ Could not write ${unitPath} (needs sudo)`);
-      console.log("  Run these commands manually:");
-      console.log("    sudo systemctl enable --now velo");
-    }
-  }
-
-  private async registerSupervisorService(telegramToken: string): Promise<void> {
-    const programContent = `[program:velo]
-command=${process.argv[0] || "bun"} run ${path.join(process.cwd(), "src/index.ts")} ${telegramToken ? `telegram ${telegramToken}` : "start"}
-directory=${VELO_HOME}
-user=${os.userInfo().username}
-autostart=true
-autorestart=true
-stdout_logfile=/var/log/velo.log
-stderr_logfile=/var/log/velo.err.log
-`;
-
-    const confPath = "/etc/supervisor/conf.d/velo.conf";
-    try {
-      fs.writeFileSync(confPath, programContent);
-      console.log(`  ✓ Created supervisor config: ${confPath}`);
-      console.log("  Run: sudo supervisorctl reload");
-    } catch (e) {
-      console.log(`  ⚠ Could not write ${confPath}`);
+      try {
+        fs.writeFileSync(unitPath, content);
+        console.log(`  ✓ Created ${unitPath}`);
+        console.log("  Run: sudo systemctl enable --now velo");
+      } catch {
+        console.log("  ⚠ Need sudo. Run manually:");
+        console.log(`    sudo cp ${unitPath} /etc/systemd/system/`);
+        console.log("    sudo systemctl enable --now velo");
+      }
+    } else {
+      console.log("  ⚠ No service manager detected.");
+      console.log("  For 24/7 operation, use systemd or run in background:");
+      console.log("    nohup velo telegram <token> &");
     }
   }
 }
 
-// CLI runner
 export async function runSetup(): Promise<void> {
   const wizard = new SetupWizard();
   await wizard.run();
 }
 
-// Run if executed directly
 if (import.meta.main) {
   await runSetup();
 }

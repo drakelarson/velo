@@ -61,7 +61,7 @@ function createDefaultConfig(): string {
 [agent]
 name = "Velo"
 personality = "Helpful, concise, autonomous AI assistant"
-model = "openai:gpt-4o-mini"
+model = "nvidia:stepfun-ai/step-3.5-flash"
 
 [providers.nvidia]
 api_key_env = "NVIDIA_API_KEY"
@@ -72,26 +72,48 @@ api_key_env = "OPENAI_API_KEY"
 
 [providers.anthropic]
 api_key_env = "ANTHROPIC_API_KEY"
+base_url = "https://api.anthropic.com/v1"
+
+[providers.google]
+api_key_env = "GOOGLE_API_KEY"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
 
 [providers.openrouter]
 api_key_env = "OPENROUTER_API_KEY"
 base_url = "https://openrouter.ai/api/v1"
 
-[providers.minimax]
-api_key_env = "MINIMAX_API_KEY"
-base_url = "https://api.minimaxi.com/v1"
+[providers.deepseek]
+api_key_env = "DEEPSEEK_API_KEY"
+base_url = "https://api.deepseek.com/v1"
+
+[providers.groq]
+api_key_env = "GROQ_API_KEY"
+base_url = "https://api.groq.com/openai/v1"
+
+[providers.cerebras]
+api_key_env = "CEREBRAS_API_KEY"
+base_url = "https://api.cerebras.ai/v1"
+
+[providers.huggingface]
+api_key_env = "HUGGINGFACE_API_KEY"
+base_url = "https://api-inference.huggingface.co/v1"
+
+[providers.azure]
+api_key_env = "AZURE_OPENAI_API_KEY"
+
+[providers.ollama]
+base_url = "http://localhost:11434/v1"
 
 [memory]
 type = "sqlite"
 path = "${veloHome}/data/velo.db"
 max_context_messages = 50
 
-# Session Compaction - Use FREE local Ollama models to compress history
 [compaction]
 enabled = true
-model = "ollama:qwen2.5:0.5b"  # FREE! Install: ollama pull qwen2.5:0.5b
-trigger_threshold = 40         # Compact when session has 40+ messages
-keep_recent = 10               # Keep last 10 messages uncompressed
+model = "ollama:qwen2.5:0.5b"
+trigger_threshold = 40
+keep_recent = 10
 ollama_base = "http://localhost:11434"
 
 [channels.webhook]
