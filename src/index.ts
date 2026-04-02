@@ -27,6 +27,10 @@ Commands:
   chat            Interactive chat mode (REPL)
   chat <msg>      Send a single message and exit
   
+  service         List all running services
+  stop            Stop all running services
+  restart <svc>   Restart a specific service (telegram, webhook, etc)
+  
   remember <k=v>  Store a fact in memory
   recall <key>    Retrieve a fact from memory
   history         Show recent conversation history
@@ -264,7 +268,7 @@ async function main() {
       // Acquire lock for long-running process
       if (!acquireLock()) {
         console.error("✖ Another Velo instance is already running");
-        console.error("  Use 'pkill -f velo' to stop it first");
+        console.error("  Use 'velo stop' to stop it");
         process.exit(1);
       }
       console.log(`\n  ▓▓▓  Velo v${VERSION}  ▓▓▓\n`);
@@ -558,7 +562,7 @@ async function main() {
       // Acquire TELEGRAM-specific lock (allows other channels to run)
       if (!acquireChannelLock("telegram")) {
         console.error("✖ Telegram bot is already running");
-        console.error("  Use 'pkill -f \"velo.*telegram\"' to stop it");
+        console.error("  Use 'velo stop' to stop it");
         process.exit(1);
       }
       
@@ -771,6 +775,104 @@ async function main() {
     case "recover": {
       console.log("✓ No crashed sessions found - clean state.");
       agent.close();
+      break;
+    }
+
+    case "service": {
+      // Service management - list running services (no agent needed)
+      const { getChannelLockInfo } = await import("./lock.ts");
+      const channels = ["telegram", "webhook", "discord", "whatsapp", "main"];
+
+      console.log(`\n  ▓▓▓  Velo Services  ▓▓▓\n`);
+
+      let anyRunning = false;
+      for (const ch of channels) {
+        const info = getChannelLockInfo(ch);
+        if (info) {
+          anyRunning = true;
+          console.log(`  ${ch.padEnd(10)} PID: ${info.pid}  [running]`);
+        } else {
+          console.log(`  ${ch.padEnd(10)} --           [stopped]`);
+        }
+      }
+
+      if (!anyRunning) {
+        console.log("\n  No services running.\n");
+        console.log("  Start a service:");
+        console.log("    velo telegram <token>  # Telegram bot");
+        console.log("    velo start             # All configured channels\n");
+      } else {
+        console.log("\n  Manage services:");
+        console.log("    velo stop              # Stop all services");
+        console.log("    velo restart <channel>  # Restart a specific service\n");
+      }
+      break;
+    }
+
+    case "stop": {
+      // Gracefully stop running Velo instances (no agent needed)
+      const { getChannelLockInfo } = await import("./lock.ts");
+      const channels = ["telegram", "webhook", "discord", "whatsapp"];
+      let stopped = false;
+
+      for (const channel of channels) {
+        const info = getChannelLockInfo(channel);
+        if (info) {
+          console.log(`Stopping ${channel} (PID ${info.pid})...`);
+          try {
+            process.kill(info.pid, "SIGINT");
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            console.log(`✓ ${channel} stopped`);
+            stopped = true;
+          } catch (e: any) {
+            if (e.code === "ESRCH") {
+              console.log(`✓ ${channel} was already stopped (stale lock removed)`);
+            } else {
+              console.error(`✖ Failed to stop ${channel}: ${e.message}`);
+            }
+          }
+        }
+      }
+
+      // Also check main lock
+      const mainLock = "/tmp/velo-locks/main.lock";
+      if (fs.existsSync(mainLock)) {
+        const pid = parseInt(fs.readFileSync(mainLock, "utf-8").trim());
+        console.log(`Stopping main (PID ${pid})...`);
+        try {
+          process.kill(pid, "SIGINT");
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          console.log(`✓ main stopped`);
+          stopped = true;
+        } catch (e: any) {
+          if (e.code !== "ESRCH") {
+            console.error(`✖ Failed to stop main: ${e.message}`);
+          }
+        }
+      }
+
+      if (!stopped) {
+        console.log("No running Velo instances found.");
+      }
+      break;
+    }
+
+    case "restart": {
+      // Restart a running service (sends SIGINT, supervisord auto-restarts on Zo)
+      const { getChannelLockInfo } = await import("./lock.ts");
+      const channel = args[1] || "telegram";
+      const info = getChannelLockInfo(channel);
+
+      if (info) {
+        console.log(`Restarting ${channel} (PID ${info.pid})...`);
+        process.kill(info.pid, "SIGINT");
+        console.log(`✓ ${channel} restart signal sent`);
+        console.log(`  Service will resume automatically`);
+      } else {
+        console.error(`✖ No running ${channel} found`);
+        console.error(`  Use 'velo telegram <token>' to start first`);
+        process.exit(1);
+      }
       break;
     }
 
