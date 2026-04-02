@@ -82,7 +82,7 @@ export class Brain {
     }
 
     // Fallback: parse XML tool calls from content (for non-compliant models)
-    if (toolCalls.length === 0 && content.includes("<function=")) {
+    if (toolCalls.length === 0 && content.includes("<function=") || content.includes("<tool_call>")) {
       console.error(`[Brain] XML fallback triggered, content includes <function=>`);
       const parsed = this.parseXmlToolCalls(content);
       toolCalls.push(...parsed);
@@ -216,7 +216,7 @@ export class Brain {
   // Fallback for models that output XML-style tool calls in content
   private parseXmlToolCalls(content: string): ToolCall[] {
     const toolCalls: ToolCall[] = [];
-    const regex = /<function=([^>]+)>([\s\S]*?)<\/function>/gi;
+    const regex = /(?:<tool_call>[\s\n]*)?<function=([^>]+)>([\s\S]*?)<\/function>(?:[\s\n]*<\/tool_call>)?/gi;
     let match;
 
     while ((match = regex.exec(content)) !== null) {
@@ -244,15 +244,15 @@ export class Brain {
   // Strip tool calls from visible output
   stripToolCalls(content: string): string {
     return content
+      .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
       .replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, "")
-      .replace(/ocomplete[\s\S]*?<\/tool_call>/gi, "")
       .trim();
   }
 }
 
 // Export for backward compatibility
 export function parseToolCalls(content: string): Array<{ name: string; args: Record<string, string> }> {
-  const regex = /<function=([^>]+)>([\s\S]*?)<\/function>/gi;
+  const regex = /(?:<tool_call>[\s\n]*)?<function=([^>]+)>([\s\S]*?)<\/function>(?:[\s\n]*<\/tool_call>)?/gi;
   const toolCalls: Array<{ name: string; args: Record<string, string> }> = [];
   let match;
 
@@ -275,7 +275,7 @@ export function parseToolCalls(content: string): Array<{ name: string; args: Rec
 
 export function stripToolCalls(content: string): string {
   return content
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
     .replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, "")
-    .replace(/ocomplete[\s\S]*?<\/tool_call>/gi, "")
     .trim();
 }
