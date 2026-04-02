@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "webhook_create",
+  name: "webhook_create"
+    category: "Web",,
   description: "Create webhook endpoint info",
   async execute(args: Record<string, unknown>) {
     const name = args.action || args.name || args.args || "webhook";

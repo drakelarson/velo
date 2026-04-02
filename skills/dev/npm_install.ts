@@ -1,7 +1,8 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "npm_install",
+  name: "npm_install"
+    category: "Dev",,
   description: "Install npm packages",
   async execute(args: Record<string, unknown>) {
     const packages = args.packages || args.args || "";

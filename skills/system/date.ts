@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "date",
+  name: "date"
+    category: "System",,
   description: "Get current date/time",
   async execute(args: Record<string, unknown>) {
     const fmt = args.format || "iso";

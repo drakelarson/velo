@@ -4,7 +4,8 @@ const VISION_MODEL = "models/gemma-3-4b-it";
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent";
 
 export default {
-  name: "vision_preprocessor",
+  name: "vision_preprocessor"
+    category: "Media",,
   description:
     "Describe an image using Gemma-3-4b-it vision. Converts images to text descriptions so non-vision models can 'see'. Usage: vision_preprocessor <image_url_or_path>",
 

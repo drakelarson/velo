@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "rss_read",
+  name: "rss_read"
+    category: "Web",,
   description: "Read RSS/Atom feed",
   async execute(args: Record<string, unknown>) {
     const url = args.action || args.url || args.args || "";

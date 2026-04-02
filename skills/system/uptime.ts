@@ -1,7 +1,8 @@
 import * as os from "os";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "uptime",
+  name: "uptime"
+    category: "System",,
   description: "Get system uptime",
   async execute() {
     const secs = os.uptime();

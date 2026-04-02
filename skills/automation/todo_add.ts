@@ -3,7 +3,8 @@ import * as path from "path";
 import type { Skill } from "../../src/types.ts";
 const TODO_FILE = "/home/workspace/velo/data/todos.json";
 export default {
-  name: "todo_add",
+  name: "todo_add"
+    category: "Automation",,
   description: "Add todo item",
   async execute(args: Record<string, unknown>) {
     const task = args.task || args.args || "";

@@ -1,7 +1,8 @@
 import type { Skill } from "../src/types.ts";
 
 export default {
-  name: "subagent_list",
+  name: "subagent_list"
+    category: "System",,
   description: "List all active subagents and their status. Shows running, completed, and failed subagents.",
   
   async execute(args: Record<string, unknown>): Promise<string> {

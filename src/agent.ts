@@ -108,16 +108,16 @@ ${persona.system_hint ? `\n**Guidance:** ${persona.system_hint}` : ""}
       personaSection = `\nYou are ${this.config.agent.name}. ${this.config.agent.personality || "Helpful, concise AI assistant."}`;
     }
 
-    // Core categories - skills grouped by function
-    const categories = [
-      "Memory: mem-search, mem-get, observe",
-      "Web: web_search, web_extract, github_search, reddit_fetch, x_fetch, yt_fetch, tiktok_fetch",
-      "Files: file_read, file_write, grep, find",
-      "Media: transcribe, tts, image_gen, edit_image",
-      "Browser: browser",
-      "Productivity: calculator, reminder, todo",
-      "System: run_command, cpu_info",
-    ].join("\n");
+    // Build dynamic categories from actually loaded skills
+    const skillGroups: Record<string, string[]> = {};
+    for (const skill of this.skills.values()) {
+      const category = skill.category || "Other";
+      if (!skillGroups[category]) skillGroups[category] = [];
+      skillGroups[category].push(skill.name);
+    }
+    const categories = Object.entries(skillGroups)
+      .map(([cat, names]) => `${cat}: ${names.join(", ")}`)
+      .join("\n");
 
     return `You are ${identityName}.${personaSection}
 
@@ -130,8 +130,7 @@ ${summaryStr || "No previous session summaries yet."}
 ## Recent Observations (Cross-Session Memory)
 ${contextIndex}
 
-## Available Tools
-${this.skills.size} tools
+## Available Tools (${this.skills.size} total)
 ${categories}
 
 When you need to use a tool, the system will handle the tool call automatically. Respond naturally.`;

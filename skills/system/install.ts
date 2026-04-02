@@ -5,7 +5,8 @@ import * as path from "path";
 import * as os from "os";
 
 export default {
-  name: "install",
+  name: "install"
+    category: "System",,
   description: "Install a Velo plugin or skill from a URL or package name. Usage: install <source>\n\nSources supported:\n  - GitHub repo URL: https://github.com/user/velo-plugin-name\n  - npm package: velo-plugin-somepackage\n  - Local path: /path/to/skill\n\nExample: install https://github.com/user/velo-plugin-foo",
 
   async execute(args: Record<string, unknown>): Promise<string> {

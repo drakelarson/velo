@@ -3,7 +3,8 @@ import * as path from "path";
 import type { Skill } from "../../src/types.ts";
 const NOTES_DIR = "/home/workspace/velo/data/notes";
 export default {
-  name: "note_save",
+  name: "note_save"
+    category: "Automation",,
   description: "Save a note",
   async execute(args: Record<string, unknown>) {
     const title = args.title || args.args || "";

@@ -1,7 +1,8 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "orchestrate",
+  name: "orchestrate"
+    category: "System",,
   description: "Orchestrate multiple specialized agents to work together. Use for complex tasks requiring coordination. Usage: orchestrate workflow=\"research_report\" task=\"your task\". Available workflows: research_report, code_feature, parallel_analysis, consensus_decision, debate, review_loop",
   
   async execute(args: Record<string, unknown>): Promise<string> {

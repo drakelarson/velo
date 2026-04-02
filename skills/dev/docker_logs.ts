@@ -1,7 +1,8 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "docker_logs",
+  name: "docker_logs"
+    category: "Dev",,
   description: "Get container logs",
   async execute(args: Record<string, unknown>) {
     const container = args.container || args.args || "";

@@ -1,7 +1,8 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "process_list",
+  name: "process_list"
+    category: "System",,
   description: "List running processes",
   async execute(args: Record<string, unknown>) {
     const filter = args.filter || args.args || "";

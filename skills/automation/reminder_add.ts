@@ -2,7 +2,8 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "reminder_add",
+  name: "reminder_add"
+    category: "Automation",,
   description: "Add a reminder",
   async execute(args: Record<string, unknown>) {
     const message = args.message || args.args || "";

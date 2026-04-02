@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "devto_articles",
+  name: "devto_articles"
+    category: "Social",,
   description: "Get DEV.to articles",
   async execute(args: Record<string, unknown>) {
     const limit = Number(args.limit) || 5;

@@ -1,7 +1,8 @@
 import * as fs from "fs";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "file_list",
+  name: "file_list"
+    category: "Files",,
   description: "List files in directory",
   async execute(args: Record<string, unknown>) {
     const dir = args.path || args.args || ".";

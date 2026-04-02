@@ -17,7 +17,8 @@ export function setAgentRef(agent: Agent) {
 }
 
 export default {
-  name: "mcp_connect",
+  name: "mcp_connect"
+    category: "System",,
   description: "Connect to an MCP (Model Context Protocol) server. MCP servers provide additional tools and resources. Usage: mcp_connect <server_command_or_url>. Examples: mcp_connect npx -y @modelcontextprotocol/server-filesystem /path, mcp_connect http://localhost:3001/mcp",
   
   async execute(args: Record<string, unknown>): Promise<string> {

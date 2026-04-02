@@ -1,7 +1,8 @@
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "x_fetch",
+  name: "x_fetch"
+    category: "Social",,
   description: "Fetch a tweet/X post by URL or ID and get its text content (no login required). Usage: x_fetch <url_or_id>",
   async execute(args: Record<string, unknown>): Promise<string> {
     const input = String(args.action || args.args || "").trim();

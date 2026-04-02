@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "sleep",
+  name: "sleep"
+    category: "System",,
   description: "Pause execution (for automation)",
   async execute(args: Record<string, unknown>) {
     const secs = Number(args.seconds || args.args) || 1;

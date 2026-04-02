@@ -1,7 +1,8 @@
 import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "run_command",
+  name: "run_command"
+    category: "System",,
   description: "Execute shell commands",
   async execute(args: Record<string, unknown>) {
     const cmd = args.command || args.args || "";

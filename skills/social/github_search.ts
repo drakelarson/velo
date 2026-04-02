@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "github_search",
+  name: "github_search"
+    category: "Social",,
   description: "Search GitHub repositories. Usage: github_search <query>",
   async execute(args: Record<string, unknown>) {
     // Accept: query, args (standard), OR action (when model passes raw query as action)

@@ -1,6 +1,7 @@
 import type { Skill } from "../../src/types.ts";
 export default {
-  name: "product_hunt",
+  name: "product_hunt"
+    category: "Social",,
   description: "Get Product Hunt posts",
   async execute() {
     try {

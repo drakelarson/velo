@@ -9,7 +9,8 @@ import type { Skill } from "../../src/types.ts";
  * Usage: "create a skill to..." or "make a new skill..."
  */
 export default {
-  name: "skill_create",
+  name: "skill_create"
+    category: "System",,
   description: "Creates and installs new Velo my-skills. Use when user wants to build a custom skill to extend Velo's capabilities. Triggers: 'create a skill', 'make a new skill', 'build a skill', 'add a skill', 'I need a skill that...'",
   
   async execute(args: Record<string, unknown>): Promise<string> {

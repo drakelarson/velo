@@ -19,7 +19,8 @@ const creationSessions = new Map<
 >();
 
 export default {
-  name: "persona",
+  name: "persona"
+    category: "System",,
   description:
     "Create, edit, and manage agent personas. Usage: persona <action> [args]. Actions: list, create, set, delete, preview, edit. When creating, describe the desired personality naturally and the system will generate a structured persona.",
 

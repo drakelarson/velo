@@ -2,7 +2,8 @@ import { execSync } from "child_process";
 import type { Skill } from "../../src/types.ts";
 
 export default {
-  name: "web_search",
+  name: "web_search"
+    category: "Web",,
   description: "Search the web using Webserp (multi-engine: Google, DuckDuckGo, Brave, Yahoo). Usage: web_search <query>",
   async execute(args: Record<string, unknown>) {
     const query = String(args.action || args.query || args.args || "").trim();
