@@ -512,9 +512,11 @@ async function main() {
       }
       
       // Acquire TELEGRAM-specific lock (allows other channels to run)
-      if (!acquireChannelLock("telegram")) {
+      const force = args.includes("--force");
+      if (!force && !acquireChannelLock("telegram")) {
         console.error("✖ Telegram bot is already running");
         console.error("  Use 'velo stop' to stop it");
+        console.error("  Or: velo telegram --force  # Force restart");
         process.exit(1);
       }
       
