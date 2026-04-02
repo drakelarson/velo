@@ -51,6 +51,18 @@ velo start                        # Start webhook + telegram servers
 velo build                        # Build standalone binary
 ```
 
+### Service Management
+```bash
+velo service                      # List all running services with PIDs
+velo stop                         # Gracefully stop all running services
+velo restart telegram             # Restart a specific service (telegram, webhook, etc.)
+```
+
+### Setup
+```bash
+velo setup                        # Interactive onboarding wizard
+```
+
 ## Architecture
 
 | Feature | Implementation |
