@@ -1,10 +1,10 @@
 /**
  * Session Compaction System
- * Uses small models (e.g., google:gemma-3-4b-it) to compress conversation history
+ * Uses Google's gemma-3-4b-it to compress conversation history
  * Reduces context size without losing important information
  * 
- * Reflection: Uses reflectionModel to generate structured summary with type, title, narrative
- * Compaction: Uses model to compress older messages into concise summary
+ * Reflection: Uses reflectionModel (google:gemma-3-4b-it) to generate structured summary with type, title, narrative
+ * Compaction: Uses model (google:gemma-3-4b-it) to compress older messages into concise summary
  */
 
 import { Brain } from "./brain.ts";

@@ -73,6 +73,9 @@ base_url = "https://integrate.api.nvidia.com/v1"
 [providers.openai]
 api_key_env = "OPENAI_API_KEY"
 
+[providers.google]
+api_key_env = "GOOGLE_API_KEY"
+
 [providers.minimax]
 api_key_env = "MINIMAX_API_KEY"
 base_url = "https://api.minimaxi.com/v1"
@@ -83,7 +86,8 @@ max_context_messages = 50
 
 [compaction]
 enabled = true
-model = "ollama:qwen2.5:0.5b"
+model = "google:gemma-3-4b-it"
+reflectionModel = "google:gemma-3-4b-it"
 trigger_threshold = 40
 keep_recent = 10
 

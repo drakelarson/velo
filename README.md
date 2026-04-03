@@ -176,23 +176,22 @@ Voices: `bella`, `sarah`, `nicole`, `sky`, `adam`, `michael`, `emma`, `isabella`
 
 ## Free Session Compaction
 
-Sessions auto-compress when they get long (40+ messages) using a **free local AI model** — no API costs.
+Sessions auto-compress when they get long (40+ messages) using **Google's free Gemma-3-4b-IT model** — no API costs, no Ollama needed.
 
 Velo handles everything automatically:
-- Installs [Ollama](https://ollama.ai) if needed
-- Pulls the compression model (qwen2.5:3b, ~500MB)
+- Uses Google AI Studio's free tier (gemma-3-4b-it)
 - Compresses silently in background
+- Reflection generates structured session summaries with type, title, narrative
 
 ```bash
 # Manual compaction
 velo compact default
 
-# Test compaction with a specific model
-velo compact test qwen2.5:1.5b
-
 # View compaction history
 velo compact status default
 ```
+
+> **Note:** Previous versions used Ollama with qwen2.5:3b. The current version uses Google Gemma via the OpenAI-compatible API — faster, no local model needed.
 
 ---
 
@@ -426,7 +425,7 @@ Advanced
 | Multi-provider | No | Yes | **Yes** |
 | Single binary | No | Yes | **Yes** |
 | Memory | Partial | None | **3-tier** |
-| Session Compaction | Yes | No | **Yes (FREE local)** |
+| Session Compaction | Yes | No | **Yes (FREE via Google Gemma)** |
 | MCP Support | Yes | No | **Yes** |
 | Plugins | Yes | No | **Yes (npm)** |
 | Subagents | No | No | **Yes** |
