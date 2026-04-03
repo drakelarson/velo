@@ -84,11 +84,21 @@ export class Brain {
     }
 
     // Fallback: parse XML tool calls from content (for non-compliant models)
-    if (toolCalls.length === 0 && content.includes("<function=") || content.includes("</")) {
-      console.error(`[Brain] XML fallback triggered, content includes <function=>`);
+    // Note: condition must group correctly — only trigger on actual XML tool call syntax
+    if (toolCalls.length === 0 && (content.includes("<function=") || content.includes("<tool_call"))) {
+      console.error(`[Brain] XML fallback triggered`);
       const parsed = this.parseXmlToolCalls(content);
       toolCalls.push(...parsed);
       console.error(`[Brain] Parsed ${parsed.length} XML tool calls`);
+    }
+
+    // Fallback: parse markdown-style tool calls from content (for models that output *tool args* as plain text)
+    if (toolCalls.length === 0) {
+      const parsed = this.parseMarkdownToolCalls(content);
+      if (parsed.length > 0) {
+        console.error(`[Brain] Markdown tool call fallback: ${parsed.length} calls`);
+        toolCalls.push(...parsed);
+      }
     }
 
     // Extract token usage
@@ -253,11 +263,70 @@ export class Brain {
     return toolCalls;
   }
 
+  // Fallback for models that output tool calls as markdown italic text: *tool_name arg1 "value" arg2 123*
+  // Also handles: *browser https://example.com*, *search query*, etc.
+  parseMarkdownToolCalls(content: string): ToolCall[] {
+    const toolCalls: ToolCall[] = [];
+    
+    // Match patterns like:
+    // *web_search query="latest news"*
+    // *browser https://example.com*
+    // *search term1 term2*
+    // *tool_name arg1="value" arg2=123*
+    const markdownRegex = /^\*(\w+)(?:\s+(.+?))?\*$/gm;
+    let match;
+
+    while ((match = markdownRegex.exec(content)) !== null) {
+      const name = match[1].trim();
+      const argsStr = match[2]?.trim() || "";
+
+      // Skip if name doesn't look like a tool (too long, has spaces, etc.)
+      if (!name || name.length > 50 || /\s/.test(name)) continue;
+
+      // Try to parse args as key="value" or key=value or positional
+      const args: Record<string, unknown> = {};
+      
+      if (argsStr) {
+        // Try JSON-style: key="value" or key='value'
+        const kvRegex = /(\w+)=(?:"([^"]*)"|'([^']*)'|(\S+))/g;
+        let kvMatch;
+        let hasKVPairs = false;
+        while ((kvMatch = kvRegex.exec(argsStr)) !== null) {
+          const key = kvMatch[1];
+          const value = kvMatch[2] ?? kvMatch[3] ?? kvMatch[4];
+          args[key] = value;
+          hasKVPairs = true;
+        }
+
+        // If no KV pairs, treat as positional "query" argument (common for search tools)
+        if (!hasKVPairs && argsStr.trim()) {
+          // Map common aliases
+          const aliasMap: Record<string, string> = {
+            site: "url", link: "url", page: "url",
+            search: "query", q: "query", term: "query",
+            file: "path", directory: "path",
+          };
+          const firstKey = aliasMap[name] || "query";
+          args[firstKey] = argsStr;
+        }
+      }
+
+      toolCalls.push({
+        id: `md_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        name,
+        arguments: args,
+      });
+    }
+
+    return toolCalls;
+  }
+
   // Strip tool calls from visible output
   stripToolCalls(content: string): string {
     return content
       .replace(/<\/tool_call>[\s\S]*?<\/tool_call>/gi, "")
       .replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, "")
+      .replace(/^\*(\w+)(?:\s+(.+?))?\*$/gm, "")
       .trim();
   }
 }
@@ -289,5 +358,6 @@ export function stripToolCalls(content: string): string {
   return content
     .replace(/<\/tool_call>[\s\S]*?<\/tool_call>/gi, "")
     .replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, "")
+    .replace(/^\*(\w+)(?:\s+(.+?))?\*$/gm, "")
     .trim();
 }

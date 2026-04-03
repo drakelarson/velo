@@ -765,7 +765,7 @@ async function main() {
 
     case "stop": {
       // Gracefully stop running Velo instances (no agent needed)
-      const { getChannelLockInfo } = await import("./lock.ts");
+      const { getChannelLockInfo, releaseChannelLock } = await import("./lock.ts");
       const channels = ["telegram", "webhook", "discord", "whatsapp"];
       let stopped = false;
 
@@ -775,17 +775,32 @@ async function main() {
           console.log(`Stopping ${channel} (PID ${info.pid})...`);
           try {
             process.kill(info.pid, "SIGINT");
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Wait up to 3s for graceful shutdown
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+            // Verify it's dead
+            try {
+              process.kill(info.pid, 0);
+              // Still alive - SIGINT didn't work, force kill
+              process.kill(info.pid, 9);
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            } catch (e: any) {
+              if (e.code !== "ESRCH") throw e;
+              // Process already dead (ESRCH) - that's fine
+            }
             console.log(`✓ ${channel} stopped`);
             stopped = true;
           } catch (e: any) {
             if (e.code === "ESRCH") {
-              console.log(`✓ ${channel} was already stopped (stale lock removed)`);
+              console.log(`✓ ${channel} was already stopped`);
             } else {
               console.error(`✖ Failed to stop ${channel}: ${e.message}`);
             }
           }
         }
+        // ALWAYS clean lock file after stopping (or if already dead)
+        try {
+          releaseChannelLock(channel);
+        } catch {}
       }
 
       // Also check main lock
@@ -795,7 +810,14 @@ async function main() {
         console.log(`Stopping main (PID ${pid})...`);
         try {
           process.kill(pid, "SIGINT");
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          try {
+            process.kill(pid, 0);
+            process.kill(pid, 9);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          } catch (e: any) {
+            if (e.code !== "ESRCH") throw e;
+          }
           console.log(`✓ main stopped`);
           stopped = true;
         } catch (e: any) {
@@ -803,6 +825,9 @@ async function main() {
             console.error(`✖ Failed to stop main: ${e.message}`);
           }
         }
+        try {
+          fs.unlinkSync(mainLock);
+        } catch {}
       }
 
       if (!stopped) {
@@ -814,81 +839,52 @@ async function main() {
     case "restart": {
       // Properly restart: kill old process via lock, clean locks, start fresh
       const channel = args[1] || "telegram";
-      const ourPid = process.pid;
       
       console.log(`\n  ▓▓▓  Restarting Velo ${channel}  ▓▓▓\n`);
-      console.log(`  Our PID: ${ourPid}`);
       
-      // 1. Read lock file and kill ONLY that specific PID
       const lockDir = "/tmp/velo-locks";
       const lockFile = `${lockDir}/${channel}.lock`;
       
+      // 1. Kill old process if lock exists
       if (fs.existsSync(lockFile)) {
-        try {
-          const content = fs.readFileSync(lockFile, "utf-8");
-          const oldPid = parseInt(content.trim());
-          if (!isNaN(oldPid) && oldPid > 0 && oldPid !== ourPid) {
-            console.log(`  Stopping ${channel} (PID ${oldPid})...`);
-            try {
-              process.kill(oldPid, 9); // SIGKILL
-              console.log("  ✓ Old process killed");
-            } catch (e: any) {
-              if (e.code !== "ESRCH") {
-                console.log(`  ⚠ Could not kill PID ${oldPid}: ${e.message}`);
-              }
+        const content = fs.readFileSync(lockFile, "utf-8").trim();
+        const oldPid = parseInt(content);
+        if (!isNaN(oldPid) && oldPid > 0) {
+          console.log(`  Stopping ${channel} (PID ${oldPid})...`);
+          try {
+            process.kill(oldPid, 9); // SIGKILL
+          } catch (e: any) {
+            if (e.code !== "ESRCH") {
+              console.log(`  ⚠ Could not kill PID ${oldPid}: ${e.message}`);
             }
-          } else if (oldPid === ourPid) {
-            console.log("  ⚠ Lock PID matches ours - waiting for it to stabilize...");
-            await new Promise(r => setTimeout(r, 2000));
           }
-        } catch (e) {}
-        
-        // Clean up lock file (after a moment to ensure old process released it)
+        }
+        // 2. Remove lock file immediately after kill
         try {
           fs.unlinkSync(lockFile);
-          console.log("  ✓ Lock cleaned");
-        } catch (e) {}
+          console.log("  ✓ Lock removed");
+        } catch (e: any) {
+          console.log(`  ⚠ Could not remove lock: ${e.message}`);
+        }
       }
       
-      // 2. Wait for old process to fully die and release resources
-      await new Promise(r => setTimeout(r, 1000));
+      // 3. Wait for process to fully die and release resources
+      await new Promise(r => setTimeout(r, 2000));
       
-      // 3. Verify old process is actually dead before starting new one
-      if (fs.existsSync(lockFile)) {
-        try {
-          const content = fs.readFileSync(lockFile, "utf-8");
-          const lockedPid = parseInt(content.trim());
-          if (!isNaN(lockedPid) && lockedPid > 0 && lockedPid !== ourPid) {
-            console.log(`  ⚠ Old PID ${lockedPid} still alive - forcing kill...`);
-            try {
-              process.kill(lockedPid, 9);
-              await new Promise(r => setTimeout(r, 500));
-            } catch (e) {}
-            try {
-              fs.unlinkSync(lockFile);
-            } catch (e) {}
-          }
-        } catch (e) {}
-      }
-      
-      // 4. Double-check no bun processes for this channel are running (exclude our parent)
+      // 4. Double-check no stray processes for this channel are running
       try {
-        const ps = Bun.spawnSync({
-          cmd: ["ps", "aux"],
-          stderr: "ignore",
-        });
+        const ps = Bun.spawnSync({ cmd: ["ps", "aux"], stderr: "ignore" });
         const output = new TextDecoder().decode(ps.stdout);
         const lines = output.split("\n").filter(line => 
-          line.includes("bun") && 
-          line.includes("index") && 
-          line.includes(channel) &&
-          !line.includes(` ${ourPid} `) // Don't kill ourselves
+          (line.includes("dist/velo") || line.includes("index.ts")) && 
+          line.includes(channel)
         );
         for (const line of lines) {
           const pidMatch = line.match(/^\S+\s+(\d+)/);
           if (pidMatch) {
             const pid = parseInt(pidMatch[1]);
-            if (pid !== ourPid && pid > 0) {
+            // Only kill if it's a different PID and not PID 1 (init)
+            if (pid > 1 && pid !== process.pid) {
               console.log(`  Force killing stray PID ${pid}...`);
               try { process.kill(pid, 9); } catch (e) {}
             }
@@ -907,17 +903,19 @@ async function main() {
       }
       
       // 6. Start fresh
-      const veloSrcPath = "/home/workspace/velo/src/index.ts";
-      console.log(`  Starting: bun run ${veloSrcPath} ${channel}`);
+      const veloPath = path.join(os.homedir(), ".velo", "velo");
+      const veloSrcPath = fs.existsSync(veloPath) ? veloPath : path.join(process.cwd(), "dist", "velo");
+      const startCmd = fs.existsSync(veloSrcPath) ? veloSrcPath : "bun";
+      const startArgs = fs.existsSync(veloSrcPath) ? [veloSrcPath, "telegram"] : [path.join(process.cwd(), "src", "index.ts"), "telegram"];
+      
+      console.log(`  Starting: ${startArgs.join(" ")}`);
       
       const child = Bun.spawn({
-        cmd: ["bun", "run", veloSrcPath, channel, token],
+        cmd: startArgs,
         stdout: "inherit",
         stderr: "inherit",
         detached: true,
-        env: {
-          ...process.env,
-        },
+        env: { ...process.env },
       });
       
       console.log(`  ✓ Started PID ${child.pid}`);
