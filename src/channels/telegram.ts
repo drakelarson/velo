@@ -368,8 +368,9 @@ Just chat with me normally for anything else!`);
 
     try {
       console.log(`[Telegram] Processing: "${message.slice(0, 50)}..."`);
-      const response = await agent.process(message);  // This now tracks activity automatically
+      const response = await agent.process(message);
       console.log(`[Telegram] Response generated (${response.length} chars)`);
+      console.log(`[Telegram] Full response: ${response}`);
       
       recovery.markClean(sessionId);
       await sendResponse(ctx, response, userId, agent);

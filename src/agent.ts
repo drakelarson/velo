@@ -205,6 +205,11 @@ When you need to use a tool, the system will handle the tool call automatically.
 
     // Think with tools
     let result = await this.brain.think(messages, systemPrompt, tools.length > 0 ? tools : undefined);
+    
+    // Log Brain output for debugging
+    console.error(`[Agent] toolCalls: ${JSON.stringify(result.toolCalls.map(t => t.name))}`);
+    console.error(`[Agent] content: ${result.content.slice(0, 200)}`);
+    console.error(`[Agent] usage: ${JSON.stringify(result.usage)}`);
 
     // Handle tool calls (loop until no more tool calls)
     let iterations = 0;
