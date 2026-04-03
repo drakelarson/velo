@@ -3,6 +3,7 @@ import { Brain, type ToolCall } from "./brain.ts";
 import { getModelPricing, calculateCost, formatCost } from "./pricing.ts";
 import { Compactor, type CompactorConfig, OllamaManager } from "./compactor.ts";
 import { loadPersona, buildSystemPromptFromPersona, getActivePersonaName } from "./persona.ts";
+import { GoogleGenAI } from "@google/genai";
 import type { Config, Message, Skill, Tool } from "./types.ts";
 
 export class Agent {
@@ -510,19 +511,6 @@ When you need to use a tool, the system will handle the tool call automatically.
       return null;
     }
 
-    // Ensure Ollama is running before reflection
-    try {
-      const ollamaManager = new OllamaManager("http://localhost:11434", "qwen2.5:3b");
-      const { ready, error } = await ollamaManager.ensureReady();
-      if (!ready) {
-        console.error("[Agent] Ollama not ready for reflection:", error);
-        return null;
-      }
-    } catch (err) {
-      console.error("[Agent] Failed to initialize OllamaManager:", err);
-      return null;
-    }
-
     // Build reflection prompt
     const conversationText = messages
       .map(m => `${m.role}: ${m.content}`)
@@ -545,17 +533,42 @@ CONCEPTS: [comma-separated tags for search]
 
 If nothing significant happened, respond with: SKIP`;
 
-    try {
-      // Use brain to analyze
-      const result = await this.brain.thinkWithModel(
-        [{ role: "user", content: reflectionPrompt }],
-        "You are a concise conversation analyst. Return ONLY the analysis in the exact format requested. No extra text.",
-        "ollama:qwen2.5:3b",
-        undefined,
-        0.2,  // Temperature for reflection - low for structured output
-      );
+    let response = "";
 
-      const response = result.content.trim();
+    try {
+      // Check if reflectionModel is configured (Google AI for FREE reflection)
+      const reflectionModel = this.config.compaction?.reflectionModel;
+      
+      if (reflectionModel && reflectionModel.startsWith("google:")) {
+        // Use Google AI (FREE)
+        const modelId = reflectionModel.replace("google:", "");
+        const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+        if (apiKey) {
+          const ai = new GoogleGenAI({ apiKey });
+          const result = await ai.models.generateContent({
+            model: modelId,
+            contents: [{ role: "user", parts: [{ text: reflectionPrompt }] }],
+            config: { temperature: 0.2 }
+          });
+          response = result.text || "";
+        }
+      } else {
+        // Fall back to Ollama
+        const ollamaManager = new OllamaManager("http://localhost:11434", "qwen2.5:3b");
+        const { ready, error } = await ollamaManager.ensureReady();
+        if (!ready) {
+          console.error("[Agent] Ollama not ready for reflection:", error);
+          return null;
+        }
+        const result = await this.brain.thinkWithModel(
+          [{ role: "user", content: reflectionPrompt }],
+          "You are a concise conversation analyst. Return ONLY the analysis in the exact format requested. No extra text.",
+          "ollama:qwen2.5:3b",
+          undefined,
+          0.2,
+        );
+        response = result.content.trim();
+      }
 
       // Check for skip
       if (response.startsWith("SKIP")) {

@@ -13,6 +13,7 @@
     "dev": "bun run --watch src/index.ts"
   },
   "dependencies": {
+    "@google/genai": "^1.48.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "hono": "^4.6.0",
     "jsonrepair": "^3.13.3",
