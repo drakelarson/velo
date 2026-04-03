@@ -9,6 +9,7 @@ import { createTelegramChannel } from "./channels/telegram.ts";
 import { loadConfig } from "./config.ts";
 import { loadSkills } from "./skills.ts";
 import { acquireLock, releaseLock, acquireChannelLock, releaseChannelLock } from "./lock.ts";
+import { ConfigUI } from "./config-ui.ts";
 import type { Config } from "./types.ts";
 
 const VERSION = "0.1.0";
@@ -96,93 +97,105 @@ async function main() {
 
   // Handle config commands before creating agent (don't need AI)
   if (command === "config") {
+    const ui = new ConfigUI({ configPath });
     const subCmd = args[1];
-    const configMgr = new ConfigManager(configPath);
-    
-    switch (subCmd) {
-      case "show": {
-        const cfg = configMgr.load();
-        console.log(`\n[agent]`);
-        console.log(`  name: ${cfg.agent.name}`);
-        console.log(`  personality: ${cfg.agent.personality}`);
-        console.log(`  model: ${cfg.agent.model}`);
-        console.log(`\n[providers]`);
-        for (const [name, prov] of Object.entries(cfg.providers)) {
-          console.log(`  ${name}:`);
-          console.log(`    api_key_env: ${prov.apiKeyEnv || "(not set)"}`);
-          if (prov.baseUrl) console.log(`    base_url: ${prov.baseUrl}`);
-        }
-        console.log(`\n[channels]`);
-        console.log(`  webhook: ${cfg.channels.webhook?.enabled ? `enabled (port ${cfg.channels.webhook?.port})` : "disabled"}`);
-        console.log(`  telegram: ${cfg.channels.telegram?.enabled ? "enabled" : "disabled"}`);
-        console.log(`\n[scheduler]`);
-        console.log(`  enabled: ${cfg.scheduler.enabled}`);
-        if (cfg.scheduler.tasks.length) {
-          for (const t of cfg.scheduler.tasks) {
-            console.log(`    - ${t.name} (${t.interval})`);
-          }
-        }
-        break;
-      }
-      
-      case "model": {
-        const model = args[2];
-        if (!model) {
-          console.error("Usage: velo config model <provider:model>");
-          console.error("Examples:");
-          console.error("  velo config model openai:gpt-4o-mini");
-          console.error("  velo config model nvidia:stepfun-ai/step-3.5-flash");
-          console.error("  velo config model anthropic:claude-3-5-sonnet-20241022");
-          process.exit(1);
-        }
-        configMgr.set("agent.model", model);
-        console.log(`✓ Model set to: ${model}`);
-        break;
-      }
-      
-      case "key": {
-        const provider = args[2];
-        const key = args[3];
-        if (!provider || !key) {
-          console.error("Usage: velo config key <provider> <api-key>");
-          console.error("Providers: openai, anthropic, nvidia, openrouter, minimax");
-          process.exit(1);
-        }
-        configMgr.setKey(provider, key);
-        console.log(`✓ API key set for: ${provider}`);
-        console.log(`  Stored in .env as ${provider.toUpperCase()}_API_KEY`);
-        break;
-      }
-      
-      case "set": {
-        const key = args[2];
-        const value = args.slice(3).join(" ");
-        if (!key || !value) {
-          console.error("Usage: velo config set <key> <value>");
-          console.error("Keys: agent.name, agent.personality, memory.path, channels.webhook.enabled");
-          process.exit(1);
-        }
-        configMgr.set(key, value);
-        console.log(`✓ Set ${key} = ${value}`);
-        break;
-      }
-      
-      case "personality": {
-        const text = args.slice(2).join(" ");
-        if (!text) {
-          console.error("Usage: velo config personality <text>");
-          process.exit(1);
-        }
-        configMgr.set("agent.personality", text);
-        console.log(`✓ Personality set: "${text}"`);
-        break;
-      }
-      
-      default:
-        console.error("Unknown config command. Use: show, model, key, set, personality");
-        process.exit(1);
+    const key = args[2];
+    const value = args.slice(3).join(" ");
+
+    if (!subCmd || subCmd === "show" || subCmd === "status") {
+      ui.show();
+      return;
     }
-    return;
+
+    switch (subCmd) {
+      case "get": {
+        const result = ui.get(key);
+        if (!result.success) { console.error(`Error: ${result.error}`); process.exit(1); }
+        console.log(result.value);
+        return;
+      }
+      case "set": {
+        if (!key || !value) {
+          console.error("Usage: velo config set <key> <value>\n");
+          console.error("Examples:");
+          console.error("  velo config set agent.name MyBot");
+          console.error("  velo config set agent.model nvidia:stepfun-ai/step-3.5-flash");
+          console.error("  velo config set compaction.trigger_threshold 50");
+          console.error("  velo config set compaction.enabled false");
+          console.error("  velo config set channels.telegram on");
+          console.error("  velo config set providers.google.api_key sk-xxxx");
+          process.exit(1);
+        }
+        const result = ui.set(key, value);
+        if (!result.success) { console.error(`Error: ${result.error}`); process.exit(1); }
+        console.log(`✓ Set ${key} = ${value}`);
+        return;
+      }
+      case "del":
+      case "delete": {
+        const result = ui.delete(key);
+        if (!result.success) { console.error(`Error: ${result.error}`); process.exit(1); }
+        console.log(`✓ Deleted ${key}`);
+        return;
+      }
+      case "model": {
+        const result = ui.setModel(key);
+        if (!result.success) { console.error(`Error: ${result.error}`); process.exit(1); }
+        console.log(`✓ Model set to: ${key}`);
+        return;
+      }
+      case "channel": {
+        const result = ui.channelSet(key, value);
+        if (!result.success) { console.error(`Error: ${result.error}`); process.exit(1); }
+        console.log(`✓ Channel ${key} ${value === "on" ? "enabled" : "disabled"}`);
+        return;
+      }
+      case "provider": {
+        if (value) {
+          const result = ui.providerAdd(key, value);
+          if (!result.success) { console.error(`Error: ${result.error}`); process.exit(1); }
+          console.log(`✓ Provider ${key} added`);
+          return;
+        }
+        console.error("Usage: velo config provider add <name> <api_key>");
+        process.exit(1);
+      }
+      case "help":
+      case "--help":
+      case "-h": {
+        console.log(`
+velo config — View and edit velo configuration
+
+Usage:
+  velo config              Show beautiful config status
+  velo config get <key>     Get a value
+  velo config set <key> <value>  Set a value
+  velo config del <key>    Delete a value
+  velo config model <m>     Set agent model
+  velo config channel <n> <on|off>  Enable/disable channel
+
+Examples:
+  velo config set agent.name MyBot
+  velo config set agent.model nvidia:stepfun-ai/step-3.5-flash
+  velo config set compaction.trigger_threshold 50
+  velo config set compaction.enabled false
+  velo config set channels.telegram on
+  velo config set providers.google.api_key sk-xxxx
+
+Keys follow TOML section.path format:
+  agent.name, agent.model, agent.personality
+  compaction.enabled, compaction.model, compaction.trigger_threshold, compaction.keep_recent
+  channels.telegram, channels.webhook
+  providers.<name>.api_key, providers.<name>.base_url
+  scheduler.enabled
+`);
+        return;
+      }
+      default: {
+        ui.show();
+        return;
+      }
+    }
   }
 
   if (command === "setup") {
