@@ -160,23 +160,21 @@ When you need to use a tool, the system will handle the tool call automatically.
 
     while (result.toolCalls.length > 0 && iterations < maxIterations) {
       iterations++;
-      for (const tc of result.toolCalls) {
-        const skill = this.skills.get(tc.name);
-        if (skill) {
-          try {
-            const toolResult = await skill.execute(tc.arguments);
-            toolResults.push({ toolCallId: tc.id, name: tc.name, result: toolResult });
-            this.memory.addMessage(this.sessionId, "system", `[Tool: ${tc.name}] ${toolResult}`);
-          } catch (err) {
-            const errorMsg = `Error executing ${tc.name}: ${err}`;
-            toolResults.push({ toolCallId: tc.id, name: tc.name, result: errorMsg });
-            this.memory.addMessage(this.sessionId, "system", errorMsg);
-          }
+      // ── CONCURRENT BATCHING ──────────────────────────────────────────
+      const batches = this.buildExecutionBatches(result.toolCalls);
+      for (const batch of batches) {
+        if (batch.type === "parallel") {
+          // Run all tools in parallel
+          const results = await Promise.all(batch.calls.map(tc => this.executeSkill(tc)));
+          for (const r of results) toolResults.push(r);
         } else {
-          const errorMsg = `Unknown tool: ${tc.name}`;
-          toolResults.push({ toolCallId: tc.id, name: tc.name, result: errorMsg });
+          // Sequential: tools must run in order
+          for (const tc of batch.calls) {
+            toolResults.push(await this.executeSkill(tc));
+          }
         }
       }
+      // ── END CONCURRENT BATCHING ──────────────────────────────────────
       const updatedMessages = this.memory.getMessages(this.sessionId);
       result = await this.brain.thinkWithToolResults(
         updatedMessages, systemPrompt, toolResults.splice(0), tools.length > 0 ? tools : undefined
@@ -218,6 +216,153 @@ When you need to use a tool, the system will handle the tool call automatically.
       console.error("[Agent] Compaction failed:", err);
     }
   }
+
+  // ── CONCURRENT TOOL EXECUTION ───────────────────────────────────────
+
+  /**
+   * Execute a single tool call, returning a result object.
+   * Shared-state and clarify tools always run sequentially.
+   */
+  private async executeSkill(tc: ToolCall): Promise<{ toolCallId: string; name: string; result: string }> {
+    const skill = this.skills.get(tc.name);
+    if (!skill) {
+      return { toolCallId: tc.id, name: tc.name, result: `Unknown tool: ${tc.name}` };
+    }
+    try {
+      const toolResult = await skill.execute(tc.arguments);
+      this.memory.addMessage(this.sessionId, "system", `[Tool: ${tc.name}] ${toolResult}`);
+      return { toolCallId: tc.id, name: tc.name, result: toolResult };
+    } catch (err) {
+      const errorMsg = `Error executing ${tc.name}: ${err}`;
+      this.memory.addMessage(this.sessionId, "system", errorMsg);
+      return { toolCallId: tc.id, name: tc.name, result: errorMsg };
+    }
+  }
+
+  /**
+   * Categorize a tool into its parallel safety group.
+   * Returns 'never' for shared-state tools, 'path_scope' for file ops, 'parallel' for safe tools.
+   */
+  private parallelGroup(toolName: string): "never" | "path_scope" | "parallel" {
+    const NEVER = new Set(["clarify", "memory_recall", "remember"]);
+    if (NEVER.has(toolName)) return "never";
+    const PATH_SCOPED = new Set(["file_read", "file_write", "patch", "edit_file_llm"]);
+    if (PATH_SCOPED.has(toolName)) return "path_scope";
+    return "parallel";
+  }
+
+  /**
+   * Check if two tools can safely run in parallel.
+   * Path-scoped tools must not have overlapping file paths.
+   */
+  private canRunParallel(a: ToolCall, b: ToolCall): boolean {
+    const ga = this.parallelGroup(a.name);
+    const gb = this.parallelGroup(b.name);
+    if (ga === "never" || gb === "never") return false;
+    if (ga === "path_scope" || gb === "path_scope") {
+      // Only parallel if neither is path-scoped, or if paths don't overlap
+      return !this.pathsOverlap(
+        a.arguments["path"] || a.arguments["file"] || "",
+        b.arguments["path"] || b.arguments["file"] || ""
+      );
+    }
+    return true;
+  }
+
+  private pathsOverlap(a: string, b: string): boolean {
+    if (!a || !b) return false;
+    // Prefix match — if one path is a prefix of another, they overlap
+    return a.startsWith(b) || b.startsWith(a);
+  }
+
+  /**
+   * Build execution batches from a list of tool calls.
+   * Returns array of { type: "parallel", calls } | { type: "sequential", calls }.
+   *
+   * Strategy: scan left-to-right, greedily grouping parallel-safe calls into
+   * parallel batches. When a tool can't join the current parallel group, close
+   * that batch and start a sequential batch for the blocking tool, then resume
+   * greedy grouping from the next tool.
+   *
+   * Example: [A, B, C] all parallel-safe → single parallel batch
+   * Example: [A(file_read /tmp/a), B(file_read /tmp/b)] → parallel (different paths)
+   * Example: [A(file_read /tmp/a), B(file_read /tmp/a)] → sequential (same path)
+   * Example: [A, B(clarify), C] → parallel [A], sequential [B(clarify)], parallel [C]
+   */
+  buildExecutionBatches(toolCalls: ToolCall[]): Array<{ type: "parallel" | "sequential"; calls: ToolCall[] }> {
+    if (toolCalls.length === 0) return [];
+    if (toolCalls.length === 1) {
+      const g = this.parallelGroup(toolCalls[0].name);
+      return [{ type: g === "never" ? "sequential" : "parallel", calls: toolCalls }];
+    }
+
+    const batches: Array<{ type: "parallel" | "sequential"; calls: ToolCall[] }> = [];
+    let i = 0;
+
+    while (i < toolCalls.length) {
+      const tc = toolCalls[i];
+      const g = this.parallelGroup(tc.name);
+
+      if (g === "never") {
+        // This tool must run alone, sequentially
+        batches.push({ type: "sequential", calls: [tc] });
+        i++;
+        continue;
+      }
+
+      if (g === "path_scope") {
+        // Start a new parallel group with this tool
+        const parallelCalls: ToolCall[] = [tc];
+        let j = i + 1;
+
+        while (j < toolCalls.length) {
+          const next = toolCalls[j];
+          const gn = this.parallelGroup(next.name);
+
+          if (gn === "never") break; // can't run in parallel with this
+
+          if (gn === "parallel") {
+            // Safe to always parallelize with path-scoped
+            parallelCalls.push(next);
+            j++;
+          } else if (gn === "path_scope") {
+            // Only parallel if paths don't overlap
+            if (!this.pathsOverlap(
+              tc.arguments["path"] || tc.arguments["file"] || "",
+              next.arguments["path"] || next.arguments["file"] || ""
+            )) {
+              parallelCalls.push(next);
+              j++;
+            } else {
+              break; // path conflict, stop adding to this batch
+            }
+          }
+        }
+
+        batches.push({ type: "parallel", calls: parallelCalls });
+        i = j;
+        continue;
+      }
+
+      // g === "parallel" — greedily group all parallel-safe tools
+      const parallelCalls: ToolCall[] = [tc];
+      let j = i + 1;
+
+      while (j < toolCalls.length) {
+        const next = toolCalls[j];
+        if (!this.canRunParallel(tc, next)) break;
+        parallelCalls.push(next);
+        j++;
+      }
+
+      batches.push({ type: "parallel", calls: parallelCalls });
+      i = j;
+    }
+
+    return batches;
+  }
+
+  // ── END CONCURRENT TOOL EXECUTION ─────────────────────────────────
 
   // ── Remaining methods (unchanged from original) ──
   remember(key: string, value: string): void { this.memory.setFact(key, value); }
