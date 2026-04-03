@@ -59,14 +59,11 @@ export class Brain {
       tool_choice: tools?.length ? "auto" : undefined,
     });
     
-    console.error(`[Brain] Model: ${this.model}, Tools: ${tools?.length || 0}, Tool calls in response: ${response.choices[0]?.message?.tool_calls?.length || 0}`);
-    console.error(`[Brain] Raw response: ${JSON.stringify(response)}`);
-
     const choice = response.choices[0];
     const content = choice.message.content || "";
     const toolCalls: ToolCall[] = [];
 
-    // Parse tool calls from API response (OpenAI-style)
+    // 1. OpenAI-style native tool_calls (highest priority)
     if (choice.message.tool_calls) {
       for (const tc of choice.message.tool_calls) {
         let args: Record<string, unknown> = {};
@@ -75,33 +72,19 @@ export class Brain {
         } catch {
           args = {};
         }
-        toolCalls.push({
-          id: tc.id,
-          name: tc.function.name,
-          arguments: args,
-        });
+        toolCalls.push({ id: tc.id, name: tc.function.name, arguments: args });
       }
     }
 
-    // Fallback: parse XML tool calls from content (for non-compliant models)
-    // Note: condition must group correctly — only trigger on actual XML tool call syntax
-    if (toolCalls.length === 0 && (content.includes("<function=") || content.includes("<tool_call"))) {
-      console.error(`[Brain] XML fallback triggered`);
-      const parsed = this.parseXmlToolCalls(content);
-      toolCalls.push(...parsed);
-      console.error(`[Brain] Parsed ${parsed.length} XML tool calls`);
-    }
-
-    // Fallback: parse markdown-style tool calls from content (for models that output *tool args* as plain text)
-    if (toolCalls.length === 0) {
-      const parsed = this.parseMarkdownToolCalls(content);
+    // 2. ZeroClaw-style multi-format parsing — only if no native calls
+    if (toolCalls.length === 0 && content.trim()) {
+      const parsed = this.parseAllToolFormats(content);
       if (parsed.length > 0) {
-        console.error(`[Brain] Markdown tool call fallback: ${parsed.length} calls`);
+        console.error(`[Brain] Fallback parser found ${parsed.length} tool call(s)`);
         toolCalls.push(...parsed);
       }
     }
 
-    // Extract token usage
     const usage = response.usage ? {
       promptTokens: response.usage.prompt_tokens,
       completionTokens: response.usage.completion_tokens,
@@ -119,10 +102,8 @@ export class Brain {
     temperature?: number,
   ): Promise<ThinkResult> {
     const startTime = Date.now();
-
-    // Split provider:model format if present
     const [providerName, modelName] = modelOverride.trim().split(":");
-    const actualModel = modelName || providerName; // Handle "gemma-3-4b-it" or "google:gemma-3-4b-it"
+    const actualModel = modelName || providerName;
 
     console.error(`[Brain] Model: ${actualModel} (${tools?.length || 0} tools), thinking...`);
 
@@ -135,7 +116,7 @@ export class Brain {
       model: actualModel,
       messages: fullMessages,
       tools: tools?.length ? this.formatTools(tools) : undefined,
-      temperature: temperature || 0.5,
+      temperature: temperature ?? 0.5,
       top_p: 0.95,
       tool_choice: tools?.length ? "auto" : undefined,
     });
@@ -155,11 +136,7 @@ export class Brain {
         } catch {
           args = {};
         }
-        toolCalls.push({
-          id: tc.id,
-          name: tc.function.name,
-          arguments: args,
-        });
+        toolCalls.push({ id: tc.id, name: tc.function.name, arguments: args });
       }
     }
 
@@ -183,7 +160,6 @@ export class Brain {
       ...messages.map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content })),
     ];
 
-    // Add tool results as tool messages
     for (const tr of toolResults) {
       fullMessages.push({
         role: "tool",
@@ -213,11 +189,7 @@ export class Brain {
         } catch {
           args = {};
         }
-        toolCalls.push({
-          id: tc.id,
-          name: tc.function.name,
-          arguments: args,
-        });
+        toolCalls.push({ id: tc.id, name: tc.function.name, arguments: args });
       }
     }
 
@@ -235,129 +207,173 @@ export class Brain {
     }));
   }
 
-  // Fallback for models that output XML-style tool calls in content
-  private parseXmlToolCalls(content: string): ToolCall[] {
-    const toolCalls: ToolCall[] = [];
-    const regex = /(?:<\/tool_call>)?<function=([^>]+)>([\s\S]*?)<\/function>(?:[\s\n]*<\/tool_call>)?/gi;
-    let match;
+  // ── ZeroClaw-style Multi-Format Parser ──────────────────────────────────
+  // Priority: XML tags > GLM-style > Markdown
+  // SECURITY: Never extract arbitrary JSON from response body
 
-    while ((match = regex.exec(content)) !== null) {
-      const name = match[1].trim();
-      const body = match[2];
-      const args: Record<string, unknown> = {};
+  parseAllToolFormats(response: string): ToolCall[] {
+    const calls: ToolCall[] = [];
+    const cleaned = this.stripThinkTags(response);
 
-      // Parse parameters
-      const paramRegex = /<parameter=([^>]+)>([\s\S]*?)<\/parameter>/gi;
-      let paramMatch;
-      while ((paramMatch = paramRegex.exec(body)) !== null) {
-        args[paramMatch[1].trim()] = paramMatch[2].trim();
-      }
+    const xmlCalls = this.parseXmlToolCalls(cleaned);
+    if (xmlCalls.length > 0) calls.push(...xmlCalls);
 
-      toolCalls.push({
-        id: `xml_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        name,
-        arguments: args,
-      });
-    }
+    const glmCalls = this.parseGlmStyleCalls(cleaned);
+    if (glmCalls.length > 0) calls.push(...glmCalls);
 
-    return toolCalls;
+    const mdCalls = this.parseMarkdownToolCalls(cleaned);
+    if (mdCalls.length > 0) calls.push(...mdCalls);
+
+    return calls;
   }
 
-  // Fallback for models that output tool calls as markdown italic text: *tool_name arg1 "value" arg2 123*
-  // Also handles: *browser https://example.com*, *search query*, etc.
-  parseMarkdownToolCalls(content: string): ToolCall[] {
-    const toolCalls: ToolCall[] = [];
-    
-    // Match patterns like:
-    // *web_search query="latest news"*
-    // *browser https://example.com*
-    // *search term1 term2*
-    // *tool_name arg1="value" arg2=123*
-    const markdownRegex = /^\*(\w+)(?:\s+(.+?))?\*$/gm;
-    let match;
-
-    while ((match = markdownRegex.exec(content)) !== null) {
-      const name = match[1].trim();
-      const argsStr = match[2]?.trim() || "";
-
-      // Skip if name doesn't look like a tool (too long, has spaces, etc.)
-      if (!name || name.length > 50 || /\s/.test(name)) continue;
-
-      // Try to parse args as key="value" or key=value or positional
-      const args: Record<string, unknown> = {};
-      
-      if (argsStr) {
-        // Try JSON-style: key="value" or key='value'
-        const kvRegex = /(\w+)=(?:"([^"]*)"|'([^']*)'|(\S+))/g;
-        let kvMatch;
-        let hasKVPairs = false;
-        while ((kvMatch = kvRegex.exec(argsStr)) !== null) {
-          const key = kvMatch[1];
-          const value = kvMatch[2] ?? kvMatch[3] ?? kvMatch[4];
-          args[key] = value;
-          hasKVPairs = true;
-        }
-
-        // If no KV pairs, treat as positional "query" argument (common for search tools)
-        if (!hasKVPairs && argsStr.trim()) {
-          // Map common aliases
-          const aliasMap: Record<string, string> = {
-            site: "url", link: "url", page: "url",
-            search: "query", q: "query", term: "query",
-            file: "path", directory: "path",
-          };
-          const firstKey = aliasMap[name] || "query";
-          args[firstKey] = argsStr;
-        }
-      }
-
-      toolCalls.push({
-        id: `md_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        name,
-        arguments: args,
-      });
-    }
-
-    return toolCalls;
-  }
-
-  // Strip tool calls from visible output
-  stripToolCalls(content: string): string {
-    return content
-      .replace(/<\/tool_call>[\s\S]*?<\/tool_call>/gi, "")
-      .replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, "")
-      .replace(/^\*(\w+)(?:\s+(.+?))?\*$/gm, "")
+  private stripThinkTags(text: string): string {
+    return text
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/<thought[\s\S]*?<\/thought>/gi, "")
+      .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
       .trim();
   }
-}
 
-// Export for backward compatibility
-export function parseToolCalls(content: string): Array<{ name: string; args: Record<string, string> }> {
-  const regex = /(?:<\/tool_call>)?<function=([^>]+)>([\s\S]*?)<\/function>(?:[\s\n]*<\/tool_call>)?/gi;
-  const toolCalls: Array<{ name: string; args: Record<string, string> }> = [];
-  let match;
-
-  while ((match = regex.exec(content)) !== null) {
-    const name = match[1].trim();
-    const body = match[2];
-    const args: Record<string, string> = {};
-
-    const paramRegex = /<parameter=([^>]+)>([\s\S]*?)<\/parameter>/gi;
-    let paramMatch;
-    while ((paramMatch = paramRegex.exec(body)) !== null) {
-      args[paramMatch[1].trim()] = paramMatch[2].trim();
+  private parseXmlToolCalls(response: string): ToolCall[] {
+    const calls: ToolCall[] = [];
+    const invokeRe = /<(?:invoke|tool_call|function)(?:\s+name=["']([^"']+)["']|\s*)>([\s\S]*?)<\/(?:invoke|tool_call|function)>/gi;
+    let m;
+    while ((m = invokeRe.exec(response)) !== null) {
+      const nameAttr = m[1];
+      const inner = m[2];
+      let name = nameAttr || "";
+      if (!name) {
+        const nameMatch = inner.match(/"name"\s*:\s*"([^"]+)"/);
+        if (nameMatch) name = nameMatch[1];
+      }
+      const args: Record<string, unknown> = {};
+      const paramRe = /<parameter\s+name=["']([^"']+)["']>([\s\S]*?)<\/parameter>/gi;
+      let pm;
+      while ((pm = paramRe.exec(inner)) !== null) {
+        let val: unknown = pm[2].trim();
+        try { val = JSON.parse(val as string); } catch { }
+        args[pm[1]] = val;
+      }
+      const jsonBlock = inner.match(/\{[^{}]*"name"[^{}]*\}/s);
+      if (jsonBlock) {
+        try {
+          const obj = JSON.parse(jsonBlock[0]);
+          if (obj.name) name = obj.name;
+          if (obj.arguments) Object.assign(args, obj.arguments);
+          else if (obj.args) Object.assign(args, obj.args);
+        } catch { }
+      }
+      if (name) {
+        calls.push({
+          id: `xml_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          name: this.mapToolAlias(name),
+          arguments: args,
+        });
+      }
     }
-
-    toolCalls.push({ name, args });
+    return calls;
   }
 
-  return toolCalls;
-}
+  private parseGlmStyleCalls(text: string): ToolCall[] {
+    const calls: ToolCall[] = [];
+    const lineRe = /^(\w+)\s*>\s*([\s\S]+)$/gm;
+    let m;
+    while ((m = lineRe.exec(text)) !== null) {
+      const name = m[1];
+      const rest = m[2].trim();
+      if (name === "I" || name === "The" || name === "This" || name === "It") continue;
+      if (rest.includes("\n") && rest.includes(":")) {
+        const args: Record<string, unknown> = {};
+        for (const ln of rest.split("\n")) {
+          const kv = ln.trim().match(/^(\w+)\s*:\s*(.+)$/);
+          if (kv) {
+            let val: unknown = kv[2].trim();
+            try { val = JSON.parse(val as string); } catch { }
+            args[kv[1]] = val;
+          }
+        }
+        if (Object.keys(args).length > 0) {
+          calls.push({ id: `glm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name: this.mapToolAlias(name), arguments: args });
+          continue;
+        }
+      }
+      if (rest.includes('="')) {
+        const args: Record<string, unknown> = {};
+        const attrRe = /(\w+)\s*=\s*"([^"]*)"/g;
+        let am;
+        while ((am = attrRe.exec(rest)) !== null) {
+          args[am[1]] = am[2];
+        }
+        if (Object.keys(args).length > 0) {
+          calls.push({ id: `glm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name: this.mapToolAlias(name), arguments: args });
+          continue;
+        }
+      }
+      const param = this.defaultParamFor(name);
+      let val: unknown = rest;
+      try { val = JSON.parse(rest); } catch { }
+      calls.push({ id: `glm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name: this.mapToolAlias(name), arguments: { [param]: val } });
+    }
+    return calls;
+  }
 
-export function stripToolCalls(content: string): string {
-  return content
-    .replace(/<\/tool_call>[\s\S]*?<\/tool_call>/gi, "")
-    .replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, "")
-    .replace(/^\*(\w+)(?:\s+(.+?))?\*$/gm, "")
-    .trim();
+  private parseMarkdownToolCalls(text: string): ToolCall[] {
+    const calls: ToolCall[] = [];
+    const mdRe = /^[*_](\w+)(?:\s+([^*_]+))?[*_]$/gm;
+    let m;
+    while ((m = mdRe.exec(text)) !== null) {
+      const name = m[1];
+      const argsStr = (m[2] || "").trim();
+      if (name === "I" || name === "The" || name === "This" || name === "It") continue;
+      const args: Record<string, unknown> = {};
+      if (argsStr) {
+        const kvRe = /(\w+)\s*=\s*"([^"]*)"|(\w+)\s*=\s*(\S+)/g;
+        let kv;
+        let hasKV = false;
+        while ((kv = kvRe.exec(argsStr)) !== null) {
+          const k = kv[1] || kv[3];
+          const v = kv[2] ?? kv[4];
+          args[k] = v;
+          hasKV = true;
+        }
+        if (!hasKV) {
+          const param = this.defaultParamFor(name);
+          args[param] = argsStr.replace(/["']/g, "");
+        }
+      }
+      calls.push({ id: `md_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name: this.mapToolAlias(name), arguments: args });
+    }
+    return calls;
+  }
+
+  private mapToolAlias(name: string): string {
+    const aliases: Record<string, string> = {
+      "browser": "browser", "browse": "browser", "open": "browser",
+      "web_search": "web_search", "search": "web_search", "google": "web_search",
+      "web_extract": "web_extract", "extract": "web_extract", "scrape": "web_extract",
+      "shell": "shell", "bash": "shell", "exec": "shell", "command": "shell",
+      "file_read": "file_read", "read": "file_read",
+      "file_write": "file_write", "write": "file_write",
+      "memory_recall": "memory_recall", "recall": "memory_recall",
+      "http_request": "http_request", "fetch": "http_request", "curl": "http_request",
+    };
+    return aliases[name] || name;
+  }
+
+  private defaultParamFor(tool: string): string {
+    const defaults: Record<string, string> = {
+      "browser": "url", "web_search": "query", "web_extract": "url",
+      "shell": "command", "file_read": "path", "file_write": "path",
+      "memory_recall": "query", "http_request": "url", "git_log": "path",
+    };
+    return defaults[tool] || "input";
+  }
+
+  stripToolCalls(content: string): string {
+    return content
+      .replace(/<[^>]+>[\s\S]*?<\/[^>]+>/gi, "")
+      .replace(/[*_](\w+)(?:\s+[^*_]+)?[*_]/g, "")
+      .trim();
+  }
 }
