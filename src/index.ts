@@ -248,12 +248,46 @@ Keys follow TOML section.path format:
         servers.push(webhook.start());
       }
 
-      if (config.channels.telegram?.enabled) {
+      // On Zo sandbox: supervisor manages Telegram to avoid 409 conflicts
+      const supervisorConf = "/etc/zo/supervisord-user.conf";
+      const hasSupervisor = fs.existsSync(supervisorConf);
+      const telegramEnabled = config.channels.telegram?.enabled;
+
+      if (telegramEnabled && hasSupervisor) {
+        console.log(`[Supervisor] Detected — using supervisor for Telegram (avoids 409 conflicts)`);
+        try {
+          const { execSync: exec } = require("child_process");
+          const conf = fs.readFileSync(supervisorConf, "utf-8");
+          const hasVeloSupervisor = conf.includes("program:velo-telegram");
+          if (hasVeloSupervisor) {
+            exec(`supervisorctl -c ${supervisorConf} restart velo-telegram`, { stdio: "inherit" });
+            console.log(`[Supervisor] ✓ velo-telegram restarted`);
+          } else {
+            console.log(`[Supervisor] velo-telegram not in supervisor config — falling back to inline`);
+            const token = config.channels.telegram.token
+              ?? (config.channels.telegram.token_env ? process.env[config.channels.telegram.token_env] : undefined);
+            if (token) {
+              const telegram = createTelegramChannel(agent, token);
+              agent.telegramBot = telegram;
+              servers.push(telegram.start());
+            }
+          }
+        } catch (e: any) {
+          console.error(`[Supervisor] Failed: ${e.message} — falling back to inline`);
+          const token = config.channels.telegram.token
+            ?? (config.channels.telegram.token_env ? process.env[config.channels.telegram.token_env] : undefined);
+          if (token) {
+            const telegram = createTelegramChannel(agent, token);
+            agent.telegramBot = telegram;
+            servers.push(telegram.start());
+          }
+        }
+      } else if (telegramEnabled) {
+        // Normal inline start
         const token = config.channels.telegram.token
           ?? (config.channels.telegram.token_env ? process.env[config.channels.telegram.token_env] : undefined);
         if (token) {
           const telegram = createTelegramChannel(agent, token);
-          // Expose telegram bot on agent for notify skill
           agent.telegramBot = telegram;
           servers.push(telegram.start());
         } else {
