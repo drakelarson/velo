@@ -23,39 +23,31 @@ mkdir -p "$HOME/.velo/bridge"
 # Download binary (or build from source)
 if [ "$(uname -m)" = "x86_64" ]; then
     echo "Downloading Velo binary..."
-    # For now, clone and build
-    cd /tmp
-    git clone https://github.com/drakelarson/velo.git velo-build
-    cd velo-build
-    bun run build
-    
-    # Install binary
-    sudo cp dist/velo /usr/local/bin/velo
-    
-    # Copy dashboard files
-    sudo mkdir -p /usr/local/share/velo
-    sudo cp -r dashboard /usr/local/share/velo/
-    sudo cp -r bridge /usr/local/share/velo/
-    
-    # Cleanup
-    cd /
-    rm -rf /tmp/velo-build
-    
-    echo ""
-    echo "✓ Velo installed to /usr/local/bin/velo"
 else
     echo "Building from source for $(uname -m)..."
-    cd /tmp
-    git clone https://github.com/drakelarson/velo.git velo-build
-    cd velo-build
-    bun run build
-    sudo cp dist/velo /usr/local/bin/velo
-    sudo mkdir -p /usr/local/share/velo
-    sudo cp -r dashboard /usr/local/share/velo/
-    sudo cp -r bridge /usr/local/share/velo/
-    cd /
-    rm -rf /tmp/velo-build
 fi
+
+# Clone, install deps, build
+cd /tmp
+git clone https://github.com/drakelarson/velo.git velo-build
+cd velo-build
+bun install
+bun run build
+
+# Install binary
+sudo cp dist/velo /usr/local/bin/velo
+
+# Copy dashboard files
+sudo mkdir -p /usr/local/share/velo
+sudo cp -r dashboard /usr/local/share/velo/
+sudo cp -r bridge /usr/local/share/velo/
+
+# Cleanup
+cd /
+rm -rf /tmp/velo-build
+
+echo ""
+echo "✓ Velo installed to /usr/local/bin/velo"
 
 # Create default config
 if [ ! -f "$HOME/.velo/velo.toml" ]; then
