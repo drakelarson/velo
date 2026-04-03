@@ -309,10 +309,10 @@ async function main() {
     case "compact": {
       const subCmd = args[1];
       const sessionId = args[2] || "default";
-      
+
       if (subCmd === "test") {
         const { testCompaction } = await import("./compactor.ts");
-        const model = args[2] || "ollama:qwen2.5:3b";
+        const model = args[2]; // optional override
         await testCompaction(model);
       } else if (subCmd === "status") {
         const history = agent.getCompactionHistory(sessionId);
@@ -328,22 +328,20 @@ async function main() {
           }
         }
         agent.close();
-      } else if (sessionId) {
+      } else {
         // Manual compaction
         console.log(`Compacting session: ${sessionId}`);
         const { Compactor } = await import("./compactor.ts");
-        const compactorCfg = config.compaction || { enabled: true, model: "ollama:qwen2.5:3b", triggerThreshold: 1, keepRecent: 10 };
-        const providerCfg = agent.getProviderConfig?.(compactorCfg.model) || {};
-        const compactor = new Compactor(compactorCfg, providerCfg);
-        
+        const compactor = new Compactor(config);
+
         const messages = agent.getHistory();
-        const { compacted, result } = await compactor.compact(messages);
-        if (result) {
-          console.log(`✓ Compacted ${result.originalCount} messages → 1 summary`);
-          console.log(`  Tokens saved: ~${result.tokensSaved}`);
-        } else {
-          console.log("No compaction needed (below threshold)");
-        }
+        const result = await compactor.compact(messages);
+
+        console.log(`Success: ${result.success}`);
+        console.log(`Messages: ${result.originalMessages} → ${result.compactedMessages}`);
+        if (result.tokensSaved) console.log(`Tokens saved: ~${result.tokensSaved}`);
+        if (result.summary) console.log(`\nSummary:\n${result.summary}`);
+        if (result.error) console.log(`ERROR: ${result.error}`);
         agent.close();
       }
       break;

@@ -747,4 +747,15 @@ export class Memory {
   close(): void {
     this.db.close();
   }
+
+  /**
+   * Get the most recent compaction summary for a session
+   */
+  getLastCompactionSummary(sessionId: string): { summary: string; messages_compacted: number; created_at: string } | null {
+    const row = this.db.prepare(
+      "SELECT summary, messages_compacted, created_at FROM compaction_summaries WHERE session_id = ? ORDER BY created_at DESC LIMIT 1"
+    ).get(sessionId) as { summary: string; messages_compacted: number; created_at: string } | undefined;
+    return row || null;
+  }
+
 }

@@ -88,7 +88,7 @@ max_context_messages = 50
 enabled = true
 model = "google:gemma-3-4b-it"
 reflectionModel = "google:gemma-3-4b-it"
-trigger_threshold = 40
+trigger_threshold = 3
 keep_recent = 10
 
 [channels.webhook]

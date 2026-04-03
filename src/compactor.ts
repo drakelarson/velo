@@ -1,14 +1,20 @@
 /**
  * Session Compaction System
- * Uses Google's gemma-3-4b-it to compress conversation history
- * Reduces context size without losing important information
- * 
- * Reflection: Uses reflectionModel (google:gemma-3-4b-it) to generate structured summary with type, title, narrative
- * Compaction: Uses model (google:gemma-3-4b-it) to compress older messages into concise summary
+ *
+ * Uses velo.toml for all config — mirrors how Agent is built.
+ *
+ * Config (from velo.toml):
+ *   [compaction]
+ *   enabled            = true
+ *   model              = "google:gemma-3-4b-it"   # summarization
+ *   reflection_model    = "google:gemma-3-4b-it"   # structured reflection
+ *   trigger_threshold   = 40                       # compact after N messages
+ *   keep_recent        = 10                       # always keep last N
+ *
+ * API: Compactor(Config) → compact(messages), reflect(messages), shouldCompact(n), keepRecent()
  */
 
-import { Brain } from "./brain.ts";
-import type { Message, ProviderConfig } from "./types.ts";
+import type { Config, Message } from "./types.ts";
 
 export interface CompactionResult {
   success: boolean;
@@ -28,90 +34,71 @@ export interface ReflectionResult {
   userGoal: string;
 }
 
-export interface CompactorConfig {
-  model: string; // e.g., "google:gemma-3-4b-it" for compaction
-  reflectionModel: string; // e.g., "google:gemma-3-4b-it" for reflection
-  triggerThreshold: number;
-  keepRecent: number;
-  providers: Record<string, ProviderConfig>;
-}
-
+/** Single-arg constructor — mirrors Agent(Config) pattern. */
 export class Compactor {
-  private config: CompactorConfig;
-  private brain: Brain;
-  private reflectionBrain: Brain;
-  private providers: Record<string, ProviderConfig>;
+  private compactModel: string;
+  private reflectModel: string;
+  private cfg: Config["compaction"];
 
-  constructor(config: CompactorConfig, providers: Record<string, ProviderConfig> = {}) {
-    this.config = {
-      model: config.model || "google:gemma-3-4b-it",
-      reflectionModel: config.reflectionModel || "google:gemma-3-4b-it",
-      triggerThreshold: config.triggerThreshold || 40,
-      keepRecent: config.keepRecent || 10,
-      providers: config.providers || {},
+  constructor(config: Config) {
+    this.cfg = config.compaction ?? {
+      enabled: true,
+      model: "google:gemma-3-4b-it",
+      triggerThreshold: 40,
+      keepRecent: 10,
     };
-    this.providers = providers;
-    
-    // Use full provider:model strings for Brain (Brain splits on ":")
-    this.brain = new Brain(this.config.model, this.providers);
-    this.reflectionBrain = new Brain(this.config.reflectionModel, this.providers);
+
+    this.compactModel  = this.cfg.model;
+    this.reflectModel  = this.cfg.reflectionModel ?? this.cfg.model;
+
+    console.error(
+      `[Compactor] init  model=${this.compactModel}` +
+      `  reflect=${this.reflectModel}` +
+      `  threshold=${this.cfg.triggerThreshold}` +
+      `  keep=${this.cfg.keepRecent}`
+    );
   }
 
   shouldCompact(messageCount: number): boolean {
-    return messageCount >= this.config.triggerThreshold;
+    return messageCount >= (this.cfg.triggerThreshold ?? 40);
   }
 
+  keepRecent(): number {
+    return this.cfg.keepRecent ?? 10;
+  }
+
+  // ── public API ───────────────────────────────────────────────────────────
+
   async reflect(messages: Message[]): Promise<{ success: boolean; result?: ReflectionResult; error?: string }> {
-    const conversation = messages
-      .map(m => `[${m.role}]: ${m.content}`)
-      .join("\n\n");
+    const conversation = messages.map(m => `[${m.role}]: ${m.content}`).join("\n\n");
+    const prompt = `Analyze this conversation. Respond with ONLY a JSON object, nothing else.
 
-    const prompt = `Analyze this conversation and provide a structured reflection.
-
-CONVERSATION:
-${conversation}
-
-Generate a reflection with these fields (respond in strict JSON format):
 {
   "user_goal": "What the user was trying to accomplish",
   "completed": "What was successfully completed",
-  "next_steps": ["Step 1", "Step 2", "Step 3"],
+  "next_steps": ["Step 1", "Step 2"],
   "type": "bugfix|feature|research|question|other",
   "title": "Short descriptive title",
   "narrative": "Brief narrative of what happened"
 }
 
-Respond with ONLY the JSON object, no other text.`;
+CONVERSATION:
+${conversation}`;
 
     try {
-      const result = await this.reflectionBrain.thinkWithModel(
-        [],
-        prompt,
-        this.config.reflectionModel,
-        undefined,
-        0.2 // Low temperature for consistent structured output
-      );
+      const result = await this.callModel(this.reflectModel, prompt, 0.2);
+      const match = result.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(match ? match[0] : result);
 
-      const content = result.content.trim();
-      
-      // Extract JSON from response
-      let jsonStr = content;
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[0];
-      }
-
-      const parsed = JSON.parse(jsonStr);
-      
       return {
         success: true,
         result: {
-          type: parsed.type || "other",
-          title: parsed.title || "Conversation",
-          narrative: parsed.narrative || "",
+          type:      parsed.type      ?? "other",
+          title:     parsed.title     ?? "Conversation",
+          narrative: parsed.narrative ?? "",
           nextSteps: Array.isArray(parsed.next_steps) ? parsed.next_steps : [],
-          completed: parsed.completed || "",
-          userGoal: parsed.user_goal || "",
+          completed: parsed.completed ?? "",
+          userGoal:  parsed.user_goal ?? "",
         },
       };
     } catch (err: any) {
@@ -120,148 +107,212 @@ Respond with ONLY the JSON object, no other text.`;
     }
   }
 
-  async compact(sessionId: string, messages: Message[]): Promise<CompactionResult> {
-    if (messages.length < this.config.triggerThreshold) {
+  async compact(messages: Message[]): Promise<CompactionResult> {
+    const keepRecent = this.keepRecent();
+
+    if (messages.length < keepRecent + 1) {
       return {
         success: false,
-        originalMessages: messages.length,
+        originalMessages:  messages.length,
         compactedMessages: messages.length,
-        summary: "Not enough messages to compact",
+        summary:           "Not enough messages to compact",
       };
     }
 
-    const toCompact = messages.slice(0, -this.config.keepRecent);
-    const toKeep = messages.slice(-this.config.keepRecent);
+    const toCompact = messages.slice(0, -keepRecent);
 
-    if (toCompact.length === 0) {
-      return {
-        success: false,
-        originalMessages: messages.length,
-        compactedMessages: messages.length,
-        summary: "No messages to compact",
-      };
-    }
-
-    console.log(`[Compactor] Compacting ${toCompact.length} messages using ${this.config.model}...`);
+    console.error(`[Compactor] Compacting ${toCompact.length} messages, keeping ${keepRecent}...`);
 
     try {
-      const summary = await this.generateSummary(toCompact);
-      const tokensSaved = this.estimateTokens(toCompact) - Math.ceil(summary.length / 4);
-
-      console.log(`[Compactor] ✓ Reduced ${toCompact.length} messages to 1 summary (saved ~${tokensSaved} tokens)`);
+      const summary = await this.summarize(toCompact);
+      const inTokens  = this.estimateTokens(toCompact);
+      const outTokens = Math.ceil(summary.length / 4);
 
       return {
-        success: true,
-        originalMessages: messages.length,
-        compactedMessages: this.config.keepRecent + 1,
+        success:            true,
+        originalMessages:   messages.length,
+        compactedMessages:  keepRecent + 1,
         summary,
-        tokensSaved,
+        tokensSaved:        Math.max(0, inTokens - outTokens),
       };
     } catch (err: any) {
-      console.error(`[Compactor] Failed: ${err.message}`);
+      console.error(`[Compactor] Compaction failed: ${err.message}`);
       return {
-        success: false,
-        originalMessages: messages.length,
-        compactedMessages: messages.length,
-        summary: `Compaction failed: ${err.message}`,
-        error: err.message,
+        success:            false,
+        originalMessages:   messages.length,
+        compactedMessages:  messages.length,
+        summary:            `Compaction failed: ${err.message}`,
+        error:              err.message,
       };
     }
   }
 
-  private async generateSummary(messages: Message[]): Promise<string> {
-    const conversation = messages
-      .map(m => `[${m.role}]: ${m.content}`)
-      .join("\n\n");
+  // ── private helpers ─────────────────────────────────────────────────────
 
-    const prompt = `Summarize this conversation concisely. Keep key facts, decisions, and context needed to continue. Be brief but complete.
+  /**
+   * Direct fetch call — bypasses OpenAI SDK entirely.
+   * Google AI API does NOT support `system` role, so we use only `user` messages.
+   */
+  private async callModel(model: string, prompt: string, temperature: number): Promise<string> {
+    const apiKey = process.env.GOOGLE_API_KEY ?? "";
+
+    // Determine base URL and request format from model prefix
+    let baseURL: string;
+    let actualModel: string;
+
+    if (model.startsWith("google:")) {
+      baseURL     = "https://generativelanguage.googleapis.com/v1beta";
+      actualModel = model.split(":")[1];
+    } else if (model.startsWith("ollama:")) {
+      baseURL     = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
+      actualModel = model.split(":")[1];
+    } else if (model.startsWith("nvidia:")) {
+      baseURL     = "https://integrate.api.nvidia.com/v1";
+      actualModel = model.split(":")[1];
+    } else if (model.startsWith("openrouter:")) {
+      baseURL     = "https://openrouter.ai/api/v1";
+      actualModel = model.split(":")[1];
+    } else {
+      // Plain model name — treat as OpenAI-compatible
+      baseURL     = "https://api.openai.com/v1";
+      actualModel = model;
+    }
+
+    let body: Record<string, unknown>;
+    let headers: Record<string, string>;
+
+    if (model.startsWith("google:")) {
+      // Google AI API format — no system role, no chat.completions endpoint
+      headers = {
+        "Content-Type": "application/json",
+      };
+      body = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature,
+          maxOutputTokens: 1024,
+        },
+      };
+      const qs = `key=${apiKey}`;
+      const url = `${baseURL}/models/${actualModel}:generateContent?${qs}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`${response.status} status code (${text.slice(0, 100)})`);
+      }
+
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    }
+
+    // OpenAI-compatible API (ollama, nvidia, openrouter, direct openai)
+    headers = {
+      "Content-Type": "application/json",
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+    };
+    body = {
+      model:    actualModel,
+      messages: [{ role: "user", content: prompt }],
+      temperature,
+    };
+    const url = `${baseURL}/chat/completions`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`${response.status} status code (${text.slice(0, 100)})`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content ?? "";
+  }
+
+  private async summarize(messages: Message[]): Promise<string> {
+    const conversation = messages.map(m => `[${m.role}]: ${m.content}`).join("\n\n");
+    const prompt = `Summarize this conversation concisely. Preserve key facts, decisions, and context needed to continue naturally.
 
 CONVERSATION:
 ${conversation}
 
+Be brief but complete. Include specific details, numbers, or decisions made.
+
 SUMMARY:`;
 
-    const result = await this.brain.thinkWithModel(
-      [],
-      prompt,
-      this.config.model,
-      undefined,
-      0.3 // Slightly higher temp for summarization creativity
-    );
-
-    return result.content.trim() || "Summary unavailable";
+    return this.callModel(this.compactModel, prompt, 0.3);
   }
 
   private estimateTokens(messages: Message[]): number {
     return messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0);
   }
-
-  getConfig(): CompactorConfig {
-    return { ...this.config };
-  }
 }
 
-// CLI helper to test compaction
-export async function testCompaction(
-  model: string = "google:gemma-3-4b-it",
-  reflectionModel: string = "google:gemma-3-4b-it"
-): Promise<void> {
-  const compactor = new Compactor({
-    model,
-    reflectionModel,
-    triggerThreshold: 5,
-    keepRecent: 2,
-    providers: {
-      google: {
-        apiKeyEnv: "GOOGLE_API_KEY",
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-      },
-    },
-  });
+// ── CLI test ────────────────────────────────────────────────────────────────
+
+export async function testCompaction(model?: string): Promise<void> {
+  const { loadConfig } = await import("./config.ts");
+  const config = loadConfig(`${process.env.HOME}/.velo/config.toml`);
+
+  if (model) {
+    if (!config.compaction) {
+      config.compaction = { enabled: true, model, reflectionModel: model, triggerThreshold: 40, keepRecent: 10 };
+    } else {
+      config.compaction.model            = model;
+      config.compaction.reflectionModel  = model;
+    }
+  }
+
+  const compactor = new Compactor(config);
 
   const testMessages: Message[] = [
-    { role: "user", content: "Hello, I'm John" },
+    { role: "user",      content: "Hello, I'm John" },
     { role: "assistant", content: "Hi John! How can I help you?" },
-    { role: "user", content: "I need help with a Python project" },
-    { role: "assistant", content: "Sure! What kind of Python project?" },
-    { role: "user", content: "A web scraper using BeautifulSoup" },
-    { role: "assistant", content: "Great choice! BeautifulSoup is excellent for scraping." },
-    { role: "user", content: "Can you show me an example?" },
-    { role: "assistant", content: "Here's a basic example: ..." },
+    { role: "user",      content: "I need help with a Python web scraper project" },
+    { role: "assistant", content: "Sure! What kind of website are you scraping?" },
+    { role: "user",      content: "An e-commerce site for price tracking using BeautifulSoup" },
+    { role: "assistant", content: "Great choice! BeautifulSoup is excellent for that." },
+    { role: "user",      content: "Product listings and individual product pages" },
+    { role: "assistant", content: "Perfect. Here's a basic structure using requests and BeautifulSoup..." },
   ];
 
-  console.log(`\n  ▓▓▓  Compaction Test  ▓▓▓\n`);
-  console.log(`Compaction Model: ${model}`);
-  console.log(`Reflection Model: ${reflectionModel}`);
-  console.log(`Original: ${testMessages.length} messages\n`);
+  console.error(`\n  ▓▓▓  Compaction Test  ▓▓▓`);
+  console.error(`Model:      ${config.compaction?.model}`);
+  console.error(`Reflection: ${config.compaction?.reflectionModel ?? config.compaction?.model}`);
+  console.error(`Threshold:  ${config.compaction?.triggerThreshold}`);
+  console.error(`Keep:       ${config.compaction?.keepRecent}`);
+  console.error(`Messages:   ${testMessages.length}\n`);
 
-  // Test reflection
-  console.log("--- REFLECTION TEST ---");
+  // Reflection test
+  console.error("--- REFLECTION TEST ---");
   const reflection = await compactor.reflect(testMessages);
   if (reflection.success && reflection.result) {
-    console.log(`Type: ${reflection.result.type}`);
-    console.log(`Title: ${reflection.result.title}`);
-    console.log(`User Goal: ${reflection.result.userGoal}`);
-    console.log(`Completed: ${reflection.result.completed}`);
-    console.log(`Next Steps: ${reflection.result.nextSteps.join(", ")}`);
-    console.log(`Narrative: ${reflection.result.narrative}`);
+    const r = reflection.result;
+    console.error(`Type:      ${r.type}`);
+    console.error(`Title:     ${r.title}`);
+    console.error(`Goal:      ${r.userGoal}`);
+    console.error(`Done:      ${r.completed}`);
+    console.error(`Next:      ${r.nextSteps.join(", ")}`);
+    console.error(`Narrative: ${r.narrative}`);
   } else {
-    console.log(`Reflection failed: ${reflection.error}`);
+    console.error(`FAILED: ${reflection.error}`);
   }
 
-  // Test compaction
-  console.log("\n--- COMPACTION TEST ---");
-  const result = await compactor.compact("test_session", testMessages);
-
-  console.log(`Success: ${result.success}`);
-  console.log(`Original: ${result.originalMessages} → Compacted: ${result.compactedMessages}`);
-  if (result.tokensSaved) {
-    console.log(`Tokens saved: ~${result.tokensSaved}`);
-  }
-  if (result.summary) {
-    console.log(`\nSummary:\n${result.summary}`);
-  }
-  if (result.error) {
-    console.log(`\nError: ${result.error}`);
-  }
+  // Compaction test
+  console.error("\n--- COMPACTION TEST ---");
+  const result = await compactor.compact(testMessages);
+  console.error(`Success:   ${result.success}`);
+  console.error(`Messages:  ${result.originalMessages} → ${result.compactedMessages}`);
+  if (result.tokensSaved) console.error(`Tokens:    ~${result.tokensSaved} saved`);
+  if (result.summary)     console.error(`\nSummary:\n${result.summary}`);
+  if (result.error)       console.error(`ERROR: ${result.error}`);
 }
