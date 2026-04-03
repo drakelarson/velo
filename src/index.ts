@@ -306,44 +306,138 @@ async function main() {
       break;
     }
 
-    case "compact": {
+    case "compact":
+    case "compaction": {
       const subCmd = args[1];
-      const sessionId = args[2] || "default";
+      
+      // Unified compaction subcommand
+      const { Compactor } = await import("./compactor.ts");
+      const config = loadConfig(configPath);
+      const cc = config.compaction;
+      const cfg = {
+        enabled: cc?.enabled ?? true,
+        triggerThreshold: cc?.triggerThreshold ?? cc?.trigger_threshold ?? 40,
+        keepRecent: cc?.keepRecent ?? cc?.keep_recent ?? 10,
+        model: cc?.model ?? "google:gemma-3-4b-it",
+        reflectionModel: cc?.reflectionModel ?? cc?.reflection_model ?? "google:gemma-3-4b-it",
+      };
+      
+      if (!subCmd || subCmd === "status") {
+        console.log(`
+  ▓▓▓  Compaction Settings  ▓▓▓
+`);
+        console.log(`  Enabled:     ${cfg.enabled ? "yes" : "no"}`);
+        console.log(`  Threshold:   ${cfg.triggerThreshold} messages (compact after this many)`);
+        console.log(`  Keep:       ${cfg.keepRecent} messages (always keep the most recent)`);
+        console.log(`  Model:      ${cfg.model}`);
+        console.log(`  Reflection: ${cfg.reflectionModel}`);
+        console.log(`
+  Formula: bot compacts when you have ${cfg.triggerThreshold}+ messages,
+           keeping the last ${cfg.keepRecent} unread. Old messages become a summary.
 
-      if (subCmd === "test") {
-        const { testCompaction } = await import("./compactor.ts");
-        const model = args[2]; // optional override
-        await testCompaction(model);
-      } else if (subCmd === "status") {
-        const history = agent.getCompactionHistory(sessionId);
-        if (history.length === 0) {
-          console.log("No compaction history for this session.");
-        } else {
-          console.log(`\n═════════ COMPACTION HISTORY (${sessionId}) ═════════\n`);
-          for (const h of history) {
-            console.log(`Date: ${h.created_at}`);
-            console.log(`Messages compacted: ${h.messages_compacted}`);
-            console.log(`Summary: ${h.summary.slice(0, 100)}...`);
-            console.log("---");
-          }
-        }
-        agent.close();
-      } else {
-        // Manual compaction
-        console.log(`Compacting session: ${sessionId}`);
-        const { Compactor } = await import("./compactor.ts");
-        const compactor = new Compactor(config);
-
-        const messages = agent.getHistory();
-        const result = await compactor.compact(messages);
-
-        console.log(`Success: ${result.success}`);
-        console.log(`Messages: ${result.originalMessages} → ${result.compactedMessages}`);
-        if (result.tokensSaved) console.log(`Tokens saved: ~${result.tokensSaved}`);
-        if (result.summary) console.log(`\nSummary:\n${result.summary}`);
-        if (result.error) console.log(`ERROR: ${result.error}`);
-        agent.close();
+  Change settings:
+    velo compaction threshold 50    # compact after 50 messages
+    velo compaction keep 5         # always keep last 5 messages
+    velo compaction off             # disable compaction
+    velo compaction on              # re-enable compaction
+    velo compaction model gpt-4o   # use a different model
+    velo compaction test            # dry-run test
+`);
+        break;
       }
+      
+      if (subCmd === "test") {
+        const model = args[2] || cfg.model;
+        console.log(`\n  ▓▓▓  Compaction Test  ▓▓▓
+`);
+        console.log(`  Model: ${model}  (current: ${cfg.model})
+`);
+        const testMessages: Message[] = [
+          { role: "user", content: "Hello, I'm John" },
+          { role: "assistant", content: "Hi John! How can I help you?" },
+          { role: "user", content: "I need help with a Python project" },
+          { role: "assistant", content: "Sure! What kind of Python project?" },
+          { role: "user", content: "A web scraper using BeautifulSoup" },
+          { role: "assistant", content: "Great choice! BeautifulSoup is excellent for scraping." },
+          { role: "user", content: "Can you show me an example?" },
+          { role: "assistant", content: "Here's a basic example: import bs4..." },
+        ];
+        const { testCompaction } = await import("./compactor.ts");
+        await testCompaction(model, testMessages);
+        break;
+      }
+      
+      if (subCmd === "threshold") {
+        const val = parseInt(args[2]);
+        if (isNaN(val) || val < 5) {
+          console.error("Threshold must be a number ≥ 5. Example: velo compaction threshold 50");
+          process.exit(1);
+        }
+        const cfg2 = new ConfigManager(configPath);
+        cfg2.set("compaction.trigger_threshold", val);
+        console.log(`✓ Compaction threshold set to ${val} messages`);
+        console.log(`  Bot will compact conversation history after ${val} messages.`);
+        break;
+      }
+      
+      if (subCmd === "keep") {
+        const val = parseInt(args[2]);
+        if (isNaN(val) || val < 1 || val > 50) {
+          console.error("Keep must be a number 1-50. Example: velo compaction keep 10");
+          process.exit(1);
+        }
+        const cfg2 = new ConfigManager(configPath);
+        cfg2.set("compaction.keep_recent", val);
+        console.log(`✓ Keep recent set to ${val} messages`);
+        console.log(`  The last ${val} messages will never be compacted.`);
+        break;
+      }
+      
+      if (subCmd === "off") {
+        const cfg2 = new ConfigManager(configPath);
+        cfg2.set("compaction.enabled", false);
+        console.log(`✓ Compaction disabled. Conversations will grow without limit.`);
+        console.log(`  (You can re-enable with: velo compaction on)`);
+        break;
+      }
+      
+      if (subCmd === "on") {
+        const cfg2 = new ConfigManager(configPath);
+        cfg2.set("compaction.enabled", true);
+        console.log(`✓ Compaction enabled.`);
+        break;
+      }
+      
+      if (subCmd === "model") {
+        const model = args[2];
+        if (!model) {
+          console.error("Usage: velo compaction model <provider:model>");
+          console.error("Examples:");
+          console.error("  velo compaction model google:gemma-3-4b-it  (free)");
+          console.error("  velo compaction model openai:gpt-4o-mini     (paid)");
+          process.exit(1);
+        }
+        const cfg2 = new ConfigManager(configPath);
+        cfg2.set("compaction.model", model);
+        console.log(`✓ Compaction model set to: ${model}`);
+        break;
+      }
+      
+      // Legacy: velo compact test <model>
+      if (subCmd === "test" || args[0] === "compact") {
+        const model = args[2] || cfg.model;
+        const { testCompaction } = await import("./compactor.ts");
+        const testMessages: Message[] = [
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Hi!" },
+        ];
+        await testCompaction(model, testMessages);
+        break;
+      }
+      
+      console.error(`Unknown compaction command: ${subCmd}`);
+      console.error(`Run 'velo compaction' (no args) to see available commands.`);
+      process.exit(1);
       break;
     }
 
@@ -1016,50 +1110,108 @@ class ConfigManager {
     return loadConfig(this.path);
   }
   
-  set(key: string, value: string): void {
-    let content = fs.existsSync(this.path) ? fs.readFileSync(this.path, "utf-8") : "";
+  /**
+   * Get a config value by dot-path key (e.g. "compaction.trigger_threshold").
+   * Returns the raw string value from TOML, or undefined if not found.
+   */
+  get(key: string): string | undefined {
+    let content = "";
+    try {
+      content = fs.readFileSync(this.path, "utf-8");
+    } catch {
+      return undefined;
+    }
+    const lines = content.split("\n");
+    let inSection = "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/);
+      if (sectionMatch) {
+        inSection = sectionMatch[1];
+        continue;
+      }
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx === -1) continue;
+      const k = trimmed.slice(0, eqIdx).trim();
+      const v = trimmed.slice(eqIdx + 1).trim();
+      const fullKey = inSection ? `${inSection}.${k}` : k;
+      if (fullKey === key) {
+        // Strip quotes
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+          return v.slice(1, -1);
+        }
+        if (v === "true") return "true";
+        if (v === "false") return "false";
+        return v;
+      }
+    }
+    return undefined;
+  }
+  
+  set(key: string, value: string | number | boolean): void {
+    let content = "";
+    try {
+      content = fs.readFileSync(this.path, "utf-8");
+    } catch {
+      content = "";
+    }
     
-    // Parse key path (e.g., "agent.model" -> ["agent", "model"])
     const parts = key.split(".");
-    
-    // Simple TOML update
     const lines = content.split("\n");
     let inSection = "";
     let found = false;
     
+    // Determine if value needs quoting
+    const needsQuotes = typeof value === "string" && !value.toLowerCase().startsWith("provider:");
+    
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
+      const trimmed = lines[i].trim();
       
-      // Check for section
-      const sectionMatch = line.match(/^\[([^\]]+)\]$/);
+      // Track current TOML section
+      const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/);
       if (sectionMatch) {
         inSection = sectionMatch[1];
         continue;
       }
       
-      // Check for key match
-      if (parts.length === 2 && inSection === parts[0]) {
-        if (line.startsWith(`${parts[1]} =`)) {
-          lines[i] = `${parts[1]} = "${value}"`;
-          found = true;
+      // Skip comments and empty lines when checking for matches
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx === -1) continue;
+      
+      const k = trimmed.slice(0, eqIdx).trim();
+      const fullKey = inSection ? `${inSection}.${k}` : k;
+      
+      // Match: require exact full path (e.g. "compaction.model" == "compaction.model")
+      // No partial matches (e.g. "model" should NOT match top-level model=)
+      if (fullKey === key) {
+        // Format value: no quotes for booleans/numbers
+        let newVal: string;
+        if (typeof value === "boolean") {
+          newVal = value ? "true" : "false";
+        } else if (typeof value === "number") {
+          newVal = String(value);
+        } else if (needsQuotes) {
+          newVal = `"${value}"`;
+        } else {
+          newVal = value;
         }
-      } else if (parts.length === 1 && inSection === "") {
-        if (line.startsWith(`${parts[0]} =`)) {
-          lines[i] = `${parts[0]} = "${value}"`;
-          found = true;
-        }
+        lines[i] = `${" ".repeat(lines[i].indexOf(k))}${k} = ${newVal}`;
+        found = true;
       }
     }
     
-    // If not found, add it
+    // If not found, append
     if (!found) {
       if (parts.length === 2) {
         // Find or create section
         const sectionIdx = lines.findIndex(l => l.trim() === `[${parts[0]}]`);
         if (sectionIdx >= 0) {
-          lines.splice(sectionIdx + 1, 0, `${parts[1]} = "${value}"`);
+          lines.splice(sectionIdx + 1, 0, `${parts[1]} = ${needsQuotes ? `"${value}"` : value}`);
         } else {
-          lines.push("", `[${parts[0]}]`, `${parts[1]} = "${value}"`);
+          lines.push("", `[${parts[0]}]`, `${parts[1]} = ${needsQuotes ? `"${value}"` : value}`);
         }
       }
     }
