@@ -215,38 +215,9 @@ When you need to use a tool, the system will handle the tool call automatically.
     while (result.toolCalls.length > 0 && iterations < maxIterations) {
       iterations++;
 
-      for (const tc of result.toolCalls) {
-        console.error(`[Agent] Tool call: ${tc.name}, args: ${JSON.stringify(tc.arguments)}`);
-        const skill = this.skills.get(tc.name);
-        if (skill) {
-          try {
-            // Execute skill with arguments
-            const toolResult = await skill.execute(tc.arguments);
-            toolResults.push({
-              toolCallId: tc.id,
-              name: tc.name,
-              result: toolResult,
-            });
-            // Add to memory
-            this.memory.addMessage(this.sessionId, "system", `[Tool: ${tc.name}] ${toolResult}`);
-          } catch (err) {
-            const errorMsg = `Error executing ${tc.name}: ${err}`;
-            toolResults.push({
-              toolCallId: tc.id,
-              name: tc.name,
-              result: errorMsg,
-            });
-            this.memory.addMessage(this.sessionId, "system", errorMsg);
-          }
-        } else {
-          const errorMsg = `Unknown tool: ${tc.name}`;
-          toolResults.push({
-            toolCallId: tc.id,
-            name: tc.name,
-            result: errorMsg,
-          });
-        }
-      }
+      // Execute tools — parallel when safe, sequential when needed
+      const execResults = await this.executeToolsParallel(result.toolCalls);
+      toolResults.push(...execResults);
 
       // Get updated messages and think again
       const updatedMessages = this.memory.getMessages(this.sessionId);
@@ -654,6 +625,146 @@ If nothing significant happened, respond with: SKIP`;
     if (this.inactivityCheckInterval) {
       clearInterval(this.inactivityCheckInterval);
       this.inactivityCheckInterval = null;
+    }
+  }
+
+  // ===========================================
+  // TOOL EXECUTION — Hermes-style parallel execution
+  // ===========================================
+
+  /**
+   * Tools that must never run concurrently (interactive, user-facing).
+   * These get sequential execution even if batched.
+   */
+  private readonly NEVER_PARALLEL_TOOLS = new Set(["clarify"]);
+
+  /**
+   * Read-only tools with no shared mutable state — safe for parallel execution.
+   */
+  private readonly PARALLEL_SAFE_TOOLS = new Set([
+    "web_search",
+    "web_extract",
+    "x_search",
+    "read_file",
+    "search_files",
+    "session_search",
+    "git_log",
+    "git_diff",
+    "git_status",
+    "npm_search",
+    "pip_search",
+    "docker_search",
+    "maps_search",
+  ]);
+
+  /**
+   * Tools scoped to a file path — run in parallel only when paths don't overlap.
+   */
+  private readonly PATH_SCOPED_TOOLS = new Set(["read_file", "write_file", "patch"]);
+
+  /**
+   * Extract the file path from a tool call's arguments for path-scoping.
+   */
+  private extractPathFromArgs(toolName: string, args: Record<string, unknown>): string | null {
+    if (!this.PATH_SCOPED_TOOLS.has(toolName)) return null;
+    const path = args.path || args.file || args.target;
+    if (typeof path !== "string" || !path.trim()) return null;
+    return path.trim();
+  }
+
+  /**
+   * Check if two paths overlap (same subtree).
+   */
+  private pathsOverlap(a: string, b: string): boolean {
+    const aParts = a.split("/");
+    const bParts = b.split("/");
+    const commonLen = Math.min(aParts.length, bParts.length);
+    return aParts.slice(0, commonLen).join("/") === bParts.slice(0, commonLen).join("/");
+  }
+
+  /**
+   * Determine if a batch of tool calls can run in parallel.
+   * Returns false if any tool is in NEVER_PARALLEL, or if paths conflict.
+   */
+  private canRunParallel(toolCalls: ToolCall[]): boolean {
+    if (toolCalls.length <= 1) return false;
+
+    const toolNames = toolCalls.map(tc => tc.name);
+
+    // NEVER_PARALLEL tools force sequential
+    if (toolNames.some(name => this.NEVER_PARALLEL_TOOLS.has(name))) {
+      return false;
+    }
+
+    // Check path conflicts for PATH_SCOPED tools
+    const reservedPaths: string[] = [];
+    for (const tc of toolCalls) {
+      const path = this.extractPathFromArgs(tc.name, tc.arguments);
+      if (path) {
+        if (reservedPaths.some(p => this.pathsOverlap(p, path))) {
+          return false; // Path conflict
+        }
+        reservedPaths.push(path);
+      } else if (!this.PARALLEL_SAFE_TOOLS.has(tc.name)) {
+        // Unknown tool with no path — play safe, run sequentially
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Execute a batch of tool calls — parallel when safe, sequential when needed.
+   * Returns an array of { toolCallId, name, result } in the same order as input.
+   */
+  private async executeToolsParallel(toolCalls: ToolCall[]): Promise<Array<{ toolCallId: string; name: string; result: string }>> {
+    // For parallel: map results back to original order
+    const results: Array<{ toolCallId: string; name: string; result: string }> = new Array(toolCalls.length);
+
+    if (this.canRunParallel(toolCalls)) {
+      // Parallel execution
+      console.error(`[Agent] Running ${toolCalls.length} tools in parallel`);
+      await Promise.all(
+        toolCalls.map(async (tc, idx) => {
+          const result = await this.executeSingleTool(tc);
+          results[idx] = result;
+        })
+      );
+    } else {
+      // Sequential execution (default, safer)
+      console.error(`[Agent] Running ${toolCalls.length} tools sequentially`);
+      for (let idx = 0; idx < toolCalls.length; idx++) {
+        const tc = toolCalls[idx];
+        const result = await this.executeSingleTool(tc);
+        results[idx] = result;
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Execute a single tool call and add result to memory.
+   */
+  private async executeSingleTool(tc: ToolCall): Promise<{ toolCallId: string; name: string; result: string }> {
+    console.error(`[Agent] Tool call: ${tc.name}, args: ${JSON.stringify(tc.arguments)}`);
+    const skill = this.skills.get(tc.name);
+
+    if (skill) {
+      try {
+        const toolResult = await skill.execute(tc.arguments);
+        this.memory.addMessage(this.sessionId, "system", `[Tool: ${tc.name}] ${toolResult}`);
+        return { toolCallId: tc.id, name: tc.name, result: toolResult };
+      } catch (err) {
+        const errorMsg = `Error executing ${tc.name}: ${err}`;
+        this.memory.addMessage(this.sessionId, "system", errorMsg);
+        return { toolCallId: tc.id, name: tc.name, result: errorMsg };
+      }
+    } else {
+      const errorMsg = `Unknown tool: ${tc.name}`;
+      this.memory.addMessage(this.sessionId, "system", errorMsg);
+      return { toolCallId: tc.id, name: tc.name, result: errorMsg };
     }
   }
 

@@ -62,6 +62,7 @@ export interface Config {
 export interface Skill {
   name: string;
   description: string;
+  category?: string; // e.g. "Web", "System", "Dev" — used for grouping in system prompt
   execute: (args: Record<string, unknown>) => Promise<string>;
 }
 
