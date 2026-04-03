@@ -153,3 +153,17 @@ echo "     velo compaction threshold 50  # compact after N messages"
 echo ""
 echo "  To uninstall:"
 echo "     curl -fsSL ... | bash uninstall"
+echo ""
+
+# Prompt user to run setup
+echo "─────────────────────────────────────────"
+echo "✓ Installation complete!"
+echo ""
+read -p "Run velo setup now? (y/N): " run_setup
+if [[ "$run_setup" =~ ^[Yy]$ ]]; then
+  if command -v velo &>/dev/null; then
+    velo setup
+  else
+    echo "Error: velo command not found. Restart your shell or run: source ~/.bashrc"
+  fi
+fi
