@@ -34,7 +34,8 @@ export class Agent {
   getProviderConfig(model: string): { baseUrl?: string; apiKey?: string } {
     const [provider] = model.split(":");
     const prov = this.config.providers[provider];
-    const apiKey = prov?.apiKeyEnv ? process.env[prov.apiKeyEnv] : undefined;
+    // Prefer inline apiKey, fall back to env var via apiKeyEnv
+    const apiKey = prov?.apiKey || (prov?.apiKeyEnv ? process.env[prov.apiKeyEnv] : undefined);
     return { baseUrl: prov?.baseUrl, apiKey };
   }
 

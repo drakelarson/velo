@@ -67,17 +67,17 @@ personality = "Helpful, concise AI assistant"
 model = "nvidia:stepfun-ai/step-3.5-flash"
 
 [providers.nvidia]
-api_key_env = "NVIDIA_API_KEY"
+api_key = "your-nvidia-api-key"
 base_url = "https://integrate.api.nvidia.com/v1"
 
 [providers.openai]
-api_key_env = "OPENAI_API_KEY"
+api_key = "your-openai-api-key"
 
 [providers.google]
-api_key_env = "GOOGLE_API_KEY"
+api_key = "your-google-api-key"
 
 [providers.minimax]
-api_key_env = "MINIMAX_API_KEY"
+api_key = "your-minimax-api-key"
 base_url = "https://api.minimaxi.com/v1"
 
 [memory]
@@ -87,8 +87,8 @@ max_context_messages = 50
 [compaction]
 enabled = true
 model = "google:gemma-3-4b-it"
-reflectionModel = "google:gemma-3-4b-it"
-trigger_threshold = 3
+reflection_model = "google:gemma-3-4b-it"
+trigger_threshold = 40
 keep_recent = 10
 
 [channels.webhook]
@@ -114,8 +114,9 @@ echo "║        Installation Done!        ║"
 echo "╚══════════════════════════════════╝"
 echo ""
 echo "Quick Start:"
-echo "  1. Set API key:"
-echo "     echo 'NVIDIA_API_KEY=your-key' >> ~/.velo/velo.env"
+echo "  1. Edit config (paste your API keys):"
+echo "     nano ~/.velo/velo.toml"
+echo "     → Replace 'your-nvidia-api-key' etc. with real keys"
 echo ""
 echo "  2. Run Velo:"
 echo "     velo chat \"Hello!\""
@@ -127,6 +128,7 @@ echo ""
 echo "  4. Telegram bot:"
 echo "     velo telegram YOUR_BOT_TOKEN"
 echo ""
-echo "  5. WhatsApp:"
-echo "     velo whatsapp login"
-echo ""
+echo "  5. Compaction settings:"
+echo "     velo compaction           # see current settings"
+echo "     velo compaction on/off   # enable/disable"
+echo "     velo compaction threshold 50  # compact after N messages"

@@ -30,7 +30,8 @@ export class Brain {
       throw new Error(`Unknown provider: ${providerName}`);
     }
 
-    const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] || "" : "";
+    // Prefer inline apiKey (config.toml), fall back to env var via apiKeyEnv
+    const apiKey = config.apiKey || (config.apiKeyEnv ? process.env[config.apiKeyEnv] || "" : "");
     const baseURL = config.baseUrl || "https://api.openai.com/v1";
 
     this.client = new OpenAI({

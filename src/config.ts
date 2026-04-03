@@ -3,6 +3,12 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Config } from "./types.ts";
 
+export interface ProviderConfig {
+  apiKey?: string;      // inline key: "sk-..." (TOML only, no env indirection)
+  apiKeyEnv?: string;   // env var name: "OPENAI_API_KEY" (legacy/compat)
+  baseUrl?: string;
+}
+
 export function loadConfig(configPath?: string): Config {
   const homeDir = os.homedir();
   const veloHome = process.env.VELO_HOME || path.join(homeDir, ".velo");

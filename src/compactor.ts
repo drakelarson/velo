@@ -39,32 +39,46 @@ export class Compactor {
   private compactModel: string;
   private reflectModel: string;
   private cfg: Config["compaction"];
+  private providers: Config["providers"];
 
   constructor(config: Config) {
-    this.cfg = config.compaction ?? {
-      enabled: true,
-      model: "google:gemma-3-4b-it",
-      triggerThreshold: 40,
-      keepRecent: 10,
+    this.cfg        = config.compaction ?? {
+      enabled: true, model: "google:gemma-3-4b-it",
+      triggerThreshold: 40, keepRecent: 10,
     };
+    this.providers  = config.providers ?? {};
+    this.compactModel = this.cfg.model;
+    this.reflectModel = this.cfg.reflectionModel ?? this.cfg.model;
 
-    this.compactModel  = this.cfg.model;
-    this.reflectModel  = this.cfg.reflectionModel ?? this.cfg.model;
+    const threshold = this.cfg.triggerThreshold
+      ?? (this.cfg as any).trigger_threshold
+      ?? 40;
+    const keep = this.cfg.keepRecent
+      ?? (this.cfg as any).keep_recent
+      ?? 10;
 
     console.error(
       `[Compactor] init  model=${this.compactModel}` +
       `  reflect=${this.reflectModel}` +
-      `  threshold=${this.cfg.triggerThreshold}` +
-      `  keep=${this.cfg.keepRecent}`
+      `  threshold=${threshold}` +
+      `  keep=${keep}`
     );
   }
 
   shouldCompact(messageCount: number): boolean {
-    return messageCount >= (this.cfg.triggerThreshold ?? 40);
+    // TOML stores snake_case; TypeScript uses camelCase
+    const threshold = this.cfg.triggerThreshold
+      ?? (this.cfg as any).trigger_threshold
+      ?? (this.cfg as any).triggerThreshold
+      ?? 40;
+    return messageCount >= threshold;
   }
 
   keepRecent(): number {
-    return this.cfg.keepRecent ?? 10;
+    return this.cfg.keepRecent
+      ?? (this.cfg as any).keep_recent
+      ?? (this.cfg as any).keepRecent
+      ?? 10;
   }
 
   // ── public API ───────────────────────────────────────────────────────────
@@ -149,93 +163,35 @@ ${conversation}`;
 
   // ── private helpers ─────────────────────────────────────────────────────
 
-  /**
-   * Direct fetch call — bypasses OpenAI SDK entirely.
-   * Google AI API does NOT support `system` role, so we use only `user` messages.
-   */
-  private async callModel(model: string, prompt: string, temperature: number): Promise<string> {
-    const apiKey = process.env.GOOGLE_API_KEY ?? "";
+  private callModel(model: string, prompt: string, temperature: number = 0.3): Promise<string> {
+    const [provider, modelName] = model.split(":");
+    const prov = this.providers?.[provider];
+    const apiKey = prov?.apiKey || (prov?.apiKeyEnv ? process.env[prov.apiKeyEnv] || "" : "");
+    const baseURL = prov?.baseUrl || "https://generativelanguage.googleapis.com/v1beta";
+    const actualModel = modelName || provider;
 
-    // Determine base URL and request format from model prefix
-    let baseURL: string;
-    let actualModel: string;
-
-    if (model.startsWith("google:")) {
-      baseURL     = "https://generativelanguage.googleapis.com/v1beta";
-      actualModel = model.split(":")[1];
-    } else if (model.startsWith("ollama:")) {
-      baseURL     = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
-      actualModel = model.split(":")[1];
-    } else if (model.startsWith("nvidia:")) {
-      baseURL     = "https://integrate.api.nvidia.com/v1";
-      actualModel = model.split(":")[1];
-    } else if (model.startsWith("openrouter:")) {
-      baseURL     = "https://openrouter.ai/api/v1";
-      actualModel = model.split(":")[1];
-    } else {
-      // Plain model name — treat as OpenAI-compatible
-      baseURL     = "https://api.openai.com/v1";
-      actualModel = model;
-    }
-
-    let body: Record<string, unknown>;
-    let headers: Record<string, string>;
-
-    if (model.startsWith("google:")) {
-      // Google AI API format — no system role, no chat.completions endpoint
-      headers = {
-        "Content-Type": "application/json",
-      };
-      body = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature,
-          maxOutputTokens: 1024,
-        },
-      };
-      const qs = `key=${apiKey}`;
-      const url = `${baseURL}/models/${actualModel}:generateContent?${qs}`;
-
-      const response = await fetch(url, {
+    return new Promise((resolve, reject) => {
+      const url = `${baseURL}/${actualModel}:generateContent?key=${apiKey}`;
+      fetch(url, {
         method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`${response.status} status code (${text.slice(0, 100)})`);
-      }
-
-      const data = await response.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    }
-
-    // OpenAI-compatible API (ollama, nvidia, openrouter, direct openai)
-    headers = {
-      "Content-Type": "application/json",
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-    };
-    body = {
-      model:    actualModel,
-      messages: [{ role: "user", content: prompt }],
-      temperature,
-    };
-    const url = `${baseURL}/chat/completions`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            res.text().then((text) => reject(new Error(`${res.status} status code (${text.slice(0, 100)})`)));
+          } else {
+            res.json().then((data) => {
+              try {
+                resolve(data.candidates[0].content.parts[0].text);
+              } catch {
+                reject(new Error(`Unexpected response shape: ${JSON.stringify(data).slice(0, 200)}`));
+              }
+            }).catch(reject);
+          }
+        })
+        .catch(reject);
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`${response.status} status code (${text.slice(0, 100)})`);
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content ?? "";
   }
 
   private async summarize(messages: Message[]): Promise<string> {

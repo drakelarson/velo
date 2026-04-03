@@ -29,7 +29,6 @@ Commands:
   
   service         List all running services
   stop            Stop all running services
-  restart <svc>   Restart a specific service (telegram, webhook, etc)
   
   remember <k=v>  Store a fact in memory
   recall <key>    Retrieve a fact from memory
@@ -237,14 +236,15 @@ async function main() {
       }
 
       if (config.channels.telegram?.enabled) {
-        const token = process.env[config.channels.telegram.token_env];
+        const token = config.channels.telegram.token
+          ?? (config.channels.telegram.token_env ? process.env[config.channels.telegram.token_env] : undefined);
         if (token) {
           const telegram = createTelegramChannel(agent, token);
           // Expose telegram bot on agent for notify skill
           agent.telegramBot = telegram;
           servers.push(telegram.start());
         } else {
-          console.error(`[Telegram] Missing token: ${config.channels.telegram.token_env}`);
+          console.error(`[Telegram] Missing token: set 'token' or 'token_env' in config.toml`);
         }
       }
 
@@ -926,95 +926,6 @@ async function main() {
         console.log("No running Velo instances found.");
       }
       break;
-    }
-
-    case "restart": {
-      // Properly restart: kill old process via lock, clean locks, start fresh
-      const channel = args[1] || "telegram";
-      
-      console.log(`\n  ▓▓▓  Restarting Velo ${channel}  ▓▓▓\n`);
-      
-      const lockDir = "/tmp/velo-locks";
-      const lockFile = `${lockDir}/${channel}.lock`;
-      
-      // 1. Kill old process if lock exists
-      if (fs.existsSync(lockFile)) {
-        const content = fs.readFileSync(lockFile, "utf-8").trim();
-        const oldPid = parseInt(content);
-        if (!isNaN(oldPid) && oldPid > 0) {
-          console.log(`  Stopping ${channel} (PID ${oldPid})...`);
-          try {
-            process.kill(oldPid, 9); // SIGKILL
-          } catch (e: any) {
-            if (e.code !== "ESRCH") {
-              console.log(`  ⚠ Could not kill PID ${oldPid}: ${e.message}`);
-            }
-          }
-        }
-        // 2. Remove lock file immediately after kill
-        try {
-          fs.unlinkSync(lockFile);
-          console.log("  ✓ Lock removed");
-        } catch (e: any) {
-          console.log(`  ⚠ Could not remove lock: ${e.message}`);
-        }
-      }
-      
-      // 3. Wait for process to fully die and release resources
-      await new Promise(r => setTimeout(r, 2000));
-      
-      // 4. Double-check no stray processes for this channel are running
-      try {
-        const ps = Bun.spawnSync({ cmd: ["ps", "aux"], stderr: "ignore" });
-        const output = new TextDecoder().decode(ps.stdout);
-        const lines = output.split("\n").filter(line => 
-          (line.includes("dist/velo") || line.includes("index.ts")) && 
-          line.includes(channel)
-        );
-        for (const line of lines) {
-          const pidMatch = line.match(/^\S+\s+(\d+)/);
-          if (pidMatch) {
-            const pid = parseInt(pidMatch[1]);
-            // Only kill if it's a different PID and not PID 1 (init)
-            if (pid > 1 && pid !== process.pid) {
-              console.log(`  Force killing stray PID ${pid}...`);
-              try { process.kill(pid, 9); } catch (e) {}
-            }
-          }
-        }
-      } catch (e) {}
-      
-      await new Promise(r => setTimeout(r, 500));
-      
-      // 5. Get token
-      const token = process.env.TELEGRAM_BOT_TOKEN || "";
-      if (!token) {
-        console.error("  ✖ TELEGRAM_BOT_TOKEN not set");
-        console.error("    Set it in ~/.velo/velo.env or export it");
-        process.exit(1);
-      }
-      
-      // 6. Start fresh
-      const veloPath = path.join(os.homedir(), ".velo", "velo");
-      const veloSrcPath = fs.existsSync(veloPath) ? veloPath : path.join(process.cwd(), "dist", "velo");
-      const startCmd = fs.existsSync(veloSrcPath) ? veloSrcPath : "bun";
-      const startArgs = fs.existsSync(veloSrcPath) ? [veloSrcPath, "telegram"] : [path.join(process.cwd(), "src", "index.ts"), "telegram"];
-      
-      console.log(`  Starting: ${startArgs.join(" ")}`);
-      
-      const child = Bun.spawn({
-        cmd: startArgs,
-        stdout: "inherit",
-        stderr: "inherit",
-        detached: true,
-        env: { ...process.env },
-      });
-      
-      console.log(`  ✓ Started PID ${child.pid}`);
-      console.log(`  Channel ${channel} will be ready in a few seconds...\n`);
-      
-      child.unref();
-      process.exit(0);
     }
 
     case "my-skills": {

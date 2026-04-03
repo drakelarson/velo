@@ -34,7 +34,6 @@ Then Velo runs as a 24/7 background service.
 | Setup wizard | `velo setup` |
 | Stop all services | `velo stop` |
 | Check status | `velo service` |
-| Restart a service | `velo restart telegram` |
 | Force start (bypass lock) | `velo telegram --force` |
 
 ---
@@ -121,8 +120,6 @@ velo service
 velo stop
 
 # Restart a specific service
-velo restart telegram
-velo restart webhook
 ```
 
 No more `pkill` commands — Velo handles it cleanly.
@@ -388,7 +385,6 @@ Configuration
 Services
   velo service              List running services
   velo stop                 Stop all services
-  velo restart [channel]    Restart a service
 
 Advanced
   velo compact [session]     Compact session history
