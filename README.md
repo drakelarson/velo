@@ -85,26 +85,31 @@ Guides you through:
 - Enabling/disabling channels
 - Setting your agent's name and personality
 
-### Manual Config
+### Config (velo config)
+
+Every setting is visible and editable with simple commands:
 
 ```bash
-# Show current config
-velo config show
+velo config              # Beautiful status table — all settings at a glance
+velo config get <key>   # Get a single value (e.g. velo config get agent.name)
 
-# Set model
-velo config model nvidia:stepfun-ai/step-3.5-flash
+# Set any value — dot notation for nested keys
+velo config set agent.name            Cody        # Set agent name
+velo config set agent.personality     "Friendly"  # Set personality
+velo config set compaction.threshold   50          # Compact after N messages
+velo config set compaction.keep_recent 10          # Keep last N messages
 
-# Set API key
-velo config key nvidia nvapi-YOUR-KEY-HERE
+# Provider API keys
+velo config set providers.nvidia.api_key     nvapi-YOUR-KEY-HERE
+velo config set providers.google.api_key      YOUR-GOOGLE-KEY
+velo config set providers.openai.api_key     sk-YOUR-OPENAI-KEY
 
-# Set personality
-velo config personality "You are a helpful coding assistant"
-
-# Set any value directly
-velo config set agent.name MyBot
+# Special commands
+velo config model      nvidia:stepfun-ai/step-3.5-flash  # Set AI model
+velo config personality "You are a helpful assistant"      # Set personality text
 ```
 
-Config lives at `~/.velo/config.toml`, keys at `~/.velo/velo.env`.
+Config file: `~/.velo/config.toml` (TOML format — human readable)
 
 ---
 
@@ -113,13 +118,12 @@ Config lives at `~/.velo/config.toml`, keys at `~/.velo/velo.env`.
 Velo runs as background services once started. Manage them with:
 
 ```bash
-# See what's running
-velo service
+velo start       # Start all enabled channels (telegram + webhook)
+velo stop        # Stop all running services
+velo restart     # Force kill all services and restart fresh
 
-# Stop everything gracefully
-velo stop
-
-# Restart a specific service
+# If stuck (kill everything)
+pkill -f velo; rm -f /tmp/velo-locks/*.lock
 ```
 
 No more `pkill` commands — Velo handles it cleanly.
