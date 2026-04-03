@@ -109,7 +109,12 @@ export class Brain {
     temperature?: number,
   ): Promise<ThinkResult> {
     const startTime = Date.now();
-    console.error(`[Brain] Model: ${modelOverride} (${tools?.length || 0} tools), thinking...`);
+
+    // Split provider:model format if present
+    const [providerName, modelName] = modelOverride.trim().split(":");
+    const actualModel = modelName || providerName; // Handle "gemma-3-4b-it" or "google:gemma-3-4b-it"
+
+    console.error(`[Brain] Model: ${actualModel} (${tools?.length || 0} tools), thinking...`);
 
     const fullMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
@@ -117,7 +122,7 @@ export class Brain {
     ];
 
     const response = await this.client.chat.completions.create({
-      model: modelOverride,
+      model: actualModel,
       messages: fullMessages,
       tools: tools?.length ? this.formatTools(tools) : undefined,
       temperature: temperature || 0.5,
@@ -126,7 +131,7 @@ export class Brain {
     });
 
     const elapsed = Date.now() - startTime;
-    console.error(`[Brain] ✓ ${modelOverride} done in ${elapsed}ms`);
+    console.error(`[Brain] ✓ ${actualModel} done in ${elapsed}ms`);
 
     const choice = response.choices[0];
     const content = choice.message.content || "";

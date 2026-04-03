@@ -3,7 +3,6 @@ import { Brain, type ToolCall } from "./brain.ts";
 import { getModelPricing, calculateCost, formatCost } from "./pricing.ts";
 import { Compactor, type CompactorConfig, OllamaManager } from "./compactor.ts";
 import { loadPersona, buildSystemPromptFromPersona, getActivePersonaName } from "./persona.ts";
-import { GoogleGenAI } from "@google/genai";
 import type { Config, Message, Skill, Tool } from "./types.ts";
 
 export class Agent {
@@ -30,8 +29,7 @@ export class Agent {
     
     // Initialize compactor if configured
     if (config.compaction?.enabled) {
-      const providerConfig = this.getProviderConfig(config.compaction.model);
-      this.compactor = new Compactor(config.compaction, providerConfig);
+      this.compactor = new Compactor(config.compaction, config.providers);
     }
 
     // Start inactivity checker
@@ -536,93 +534,72 @@ If nothing significant happened, respond with: SKIP`;
     let response = "";
 
     try {
-      // Check if reflectionModel is configured (Google AI for FREE reflection)
-      const reflectionModel = this.config.compaction?.reflectionModel;
+      // Use reflectionModel from compaction config (can be google:gemma-3-4b-it or ollama:qwen2.5:3b)
+      // thinkWithModel handles both Google and Ollama consistently
+      const reflectionModel = this.config.compaction?.reflectionModel || "google:gemma-3-4b-it";
       
-      if (reflectionModel && reflectionModel.startsWith("google:")) {
-        // Use Google AI (FREE)
-        const modelId = reflectionModel.replace("google:", "");
-        const apiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-        if (apiKey) {
-          const ai = new GoogleGenAI({ apiKey });
-          const result = await ai.models.generateContent({
-            model: modelId,
-            contents: [{ role: "user", parts: [{ text: reflectionPrompt }] }],
-            config: { temperature: 0.2 }
-          });
-          response = result.text || "";
-        }
-      } else {
-        // Fall back to Ollama
-        const ollamaManager = new OllamaManager("http://localhost:11434", "qwen2.5:3b");
-        const { ready, error } = await ollamaManager.ensureReady();
-        if (!ready) {
-          console.error("[Agent] Ollama not ready for reflection:", error);
-          return null;
-        }
-        const result = await this.brain.thinkWithModel(
-          [{ role: "user", content: reflectionPrompt }],
-          "You are a concise conversation analyst. Return ONLY the analysis in the exact format requested. No extra text.",
-          "ollama:qwen2.5:3b",
-          undefined,
-          0.2,
-        );
-        response = result.content.trim();
-      }
-
-      // Check for skip
-      if (response.startsWith("SKIP")) {
-        return null;
-      }
-
-      // Parse response
-      const userGoalMatch = response.match(/USER_GOAL:\s*(.+?)(?:\n|COMPLETED)/);
-      const completedMatch = response.match(/COMPLETED:\s*(.+?)(?:\n|NEXT_STEPS)/);
-      const nextStepsMatch = response.match(/NEXT_STEPS:\s*(.+?)(?:\n|TYPE)/);
-      const typeMatch = response.match(/TYPE:\s*(\w+)/);
-      const titleMatch = response.match(/TITLE:\s*(.+?)(?:\n|NARRATIVE)/);
-      const narrativeMatch = response.match(/NARRATIVE:\s*(.+?)(?:\n|FACTS)/s);
-      const factsMatch = response.match(/FACTS:\s*(.+?)(?:\n|CONCEPTS)/s);
-      const conceptsMatch = response.match(/CONCEPTS:\s*(.+?)(?:\n|$)/s);
-
-      const type = typeMatch?.[1] as ObservationType || "change";
-      const title = titleMatch?.[1]?.trim() || "Session reflection";
-      const narrative = narrativeMatch?.[1]?.trim() || response.slice(0, 200);
-      const facts = factsMatch?.[1]?.split(",").map(s => s.trim()).filter(Boolean) || [];
-      const concepts = conceptsMatch?.[1]?.split(",").map(s => s.trim()).filter(Boolean) || ["session-reflection"];
-      
-      const userGoal = userGoalMatch?.[1]?.trim() || undefined;
-      const completed = completedMatch?.[1]?.trim() || undefined;
-      const nextSteps = nextStepsMatch?.[1]?.trim() || undefined;
-
-      // Store observation
-      const obsId = this.memory.addObservation(
-        sessionId,
-        type,
-        title,
-        narrative,
-        facts,
-        concepts,
-        { channel: "telegram" }
+      const result = await this.brain.thinkWithModel(
+        [{ role: "user", content: reflectionPrompt }],
+        "You are a concise conversation analyst. Return ONLY the analysis in the exact format requested. No extra text.",
+        reflectionModel,
+        undefined,
+        0.2,
       );
-
-      // Get current message count
-      const messageCount = this.memory.getMessageCount(sessionId);
-
-      // Update session summary with ALL fields
-      this.memory.updateSessionSummary(sessionId, {
-        user_goal: userGoal,
-        completed: completed,
-        learned: narrative,
-        next_steps: nextSteps,
-        message_count: messageCount,
-      });
-
-      return `🟣 Reflected: ${title} (obs #${obsId})`;
+      response = result.content.trim();
     } catch (err: any) {
       console.error("[Agent] Reflection error:", err.message);
       return null;
     }
+
+    // Check for skip
+    if (response.startsWith("SKIP")) {
+      return null;
+    }
+
+    // Parse response
+    const userGoalMatch = response.match(/USER_GOAL:\s*(.+?)(?:\n|COMPLETED)/);
+    const completedMatch = response.match(/COMPLETED:\s*(.+?)(?:\n|NEXT_STEPS)/);
+    const nextStepsMatch = response.match(/NEXT_STEPS:\s*(.+?)(?:\n|TYPE)/);
+    const typeMatch = response.match(/TYPE:\s*(\w+)/);
+    const titleMatch = response.match(/TITLE:\s*(.+?)(?:\n|NARRATIVE)/);
+    const narrativeMatch = response.match(/NARRATIVE:\s*(.+?)(?:\n|FACTS)/s);
+    const factsMatch = response.match(/FACTS:\s*(.+?)(?:\n|CONCEPTS)/s);
+    const conceptsMatch = response.match(/CONCEPTS:\s*(.+?)(?:\n|$)/s);
+
+    const type = typeMatch?.[1] as ObservationType || "change";
+    const title = titleMatch?.[1]?.trim() || "Session reflection";
+    const narrative = narrativeMatch?.[1]?.trim() || response.slice(0, 200);
+    const facts = factsMatch?.[1]?.split(",").map(s => s.trim()).filter(Boolean) || [];
+    const concepts = conceptsMatch?.[1]?.split(",").map(s => s.trim()).filter(Boolean) || ["session-reflection"];
+    
+    const userGoal = userGoalMatch?.[1]?.trim() || undefined;
+    const completed = completedMatch?.[1]?.trim() || undefined;
+    const nextSteps = nextStepsMatch?.[1]?.trim() || undefined;
+
+    // Store observation
+    const obsId = this.memory.addObservation(
+      sessionId,
+      type,
+      title,
+      narrative,
+      facts,
+      concepts,
+      { channel: "telegram" }
+    );
+
+    // Get current message count
+    const messageCount = this.memory.getMessageCount(sessionId);
+
+    // Update session summary with ALL fields
+    this.memory.updateSessionSummary(sessionId, {
+      user_goal: userGoal,
+      completed: completed,
+      learned: narrative,
+      next_steps: nextSteps,
+      message_count: messageCount,
+    });
+
+    return `🟣 Reflected: ${title} (obs #${obsId})`;
   }
 
   // ===========================================

@@ -1,14 +1,14 @@
 /**
  * Session Compaction System
- * Uses small models (e.g., ollama:qwen2.5:0.5b) to compress conversation history
- * Reduces context size without losing important information - FREE with local models
+ * Uses small models (e.g., google:gemma-3-4b-it) to compress conversation history
+ * Reduces context size without losing important information
  * 
- * AUTO-SETUP: Automatically installs Ollama and pulls required model if not present
- * WAKE-ON-DEMAND: Starts Ollama service when compaction is needed
+ * Reflection: Uses reflectionModel to generate structured summary with type, title, narrative
+ * Compaction: Uses model to compress older messages into concise summary
  */
 
-import { spawn, type Subprocess } from "bun";
-import type { Message } from "./types.ts";
+import { Brain } from "./brain.ts";
+import type { Message, ProviderConfig } from "./types.ts";
 
 export interface CompactionResult {
   success: boolean;
@@ -19,198 +19,105 @@ export interface CompactionResult {
   error?: string;
 }
 
-export interface CompactorConfig {
-  model: string;
-  triggerThreshold: number;
-  keepRecent: number;
-  ollamaBase: string;
+export interface ReflectionResult {
+  type: string;
+  title: string;
+  narrative: string;
+  nextSteps: string[];
+  completed: string;
+  userGoal: string;
 }
 
-export class OllamaManager {
-  private ollamaBase: string;
-  private model: string;
-  private ollamaProcess: Subprocess | null = null;
-
-  constructor(ollamaBase: string, model: string) {
-    this.ollamaBase = ollamaBase;
-    // Strip ollama: prefix if present
-    this.model = model.replace(/^ollama:/, "");
-  }
-
-  async isOllamaInstalled(): Promise<boolean> {
-    try {
-      const result = Bun.spawnSync(["which", "ollama"]);
-      return result.exitCode === 0;
-    } catch {
-      return false;
-    }
-  }
-
-  async installOllama(): Promise<boolean> {
-    console.log("[Compactor] Installing Ollama...");
-    
-    if (await this.isOllamaInstalled()) {
-      console.log("[Compactor] Ollama already installed");
-      return true;
-    }
-
-    try {
-      const install = Bun.spawn(["sh", "-c", "curl -fsSL https://ollama.com/install.sh | sh"], {
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-
-      const exitCode = await install.exited;
-      
-      if (exitCode === 0) {
-        console.log("[Compactor] ✓ Ollama installed successfully");
-        return true;
-      } else {
-        console.error("[Compactor] ✖ Ollama installation failed");
-        return false;
-      }
-    } catch (err) {
-      console.error("[Compactor] Install error:", err);
-      return false;
-    }
-  }
-
-  async isOllamaRunning(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.ollamaBase}/api/tags`, {
-        method: "GET",
-        signal: AbortSignal.timeout(2000),
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  async startOllama(): Promise<boolean> {
-    if (await this.isOllamaRunning()) {
-      return true;
-    }
-
-    console.log("[Compactor] Starting Ollama service (wake on demand)...");
-
-    try {
-      this.ollamaProcess = spawn({
-        cmd: ["ollama", "serve"],
-        stdout: "ignore",
-        stderr: "ignore",
-        detached: true,
-      });
-
-      // Wait for service to be ready
-      for (let i = 0; i < 15; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        if (await this.isOllamaRunning()) {
-          console.log("[Compactor] ✓ Ollama service started");
-          return true;
-        }
-      }
-
-      console.error("[Compactor] ✖ Ollama service failed to start");
-      return false;
-    } catch (err) {
-      console.error("[Compactor] Start error:", err);
-      return false;
-    }
-  }
-
-  async isModelAvailable(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.ollamaBase}/api/tags`);
-      const data = await response.json();
-      
-      const modelName = this.model.split(":")[0];
-      
-      return data.models?.some((m: any) => 
-        m.name?.startsWith(modelName) || m.name === modelName
-      ) || false;
-    } catch {
-      return false;
-    }
-  }
-
-  async pullModel(): Promise<boolean> {
-    if (await this.isModelAvailable()) {
-      console.log(`[Compactor] Model ${this.model} already available`);
-      return true;
-    }
-
-    console.log(`[Compactor] Pulling model ${this.model} (first time setup)...`);
-
-    try {
-      const pull = Bun.spawn(["ollama", "pull", this.model], {
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-
-      const exitCode = await pull.exited;
-      
-      if (exitCode === 0) {
-        console.log(`[Compactor] ✓ Model ${this.model} pulled successfully`);
-        return true;
-      } else {
-        console.error(`[Compactor] ✖ Failed to pull model ${this.model}`);
-        return false;
-      }
-    } catch (err) {
-      console.error("[Compactor] Pull error:", err);
-      return false;
-    }
-  }
-
-  async ensureReady(): Promise<{ ready: boolean; error?: string }> {
-    // Step 1: Check/install Ollama
-    if (!(await this.isOllamaInstalled())) {
-      const installed = await this.installOllama();
-      if (!installed) {
-        return { ready: false, error: "Failed to install Ollama" };
-      }
-    }
-
-    // Step 2: Start Ollama service (wake on demand)
-    const started = await this.startOllama();
-    if (!started) {
-      return { ready: false, error: "Failed to start Ollama service" };
-    }
-
-    // Step 3: Pull model if needed
-    const modelReady = await this.pullModel();
-    if (!modelReady) {
-      return { ready: false, error: `Failed to pull model ${this.model}` };
-    }
-
-    return { ready: true };
-  }
-
-  stop() {
-    if (this.ollamaProcess) {
-      this.ollamaProcess.kill();
-      this.ollamaProcess = null;
-    }
-  }
+export interface CompactorConfig {
+  model: string; // e.g., "google:gemma-3-4b-it" for compaction
+  reflectionModel: string; // e.g., "google:gemma-3-4b-it" for reflection
+  triggerThreshold: number;
+  keepRecent: number;
+  providers: Record<string, ProviderConfig>;
 }
 
 export class Compactor {
   private config: CompactorConfig;
-  private ollamaManager: OllamaManager;
+  private brain: Brain;
+  private reflectionBrain: Brain;
+  private providers: Record<string, ProviderConfig>;
 
-  constructor(config: Partial<CompactorConfig> = {}) {
+  constructor(config: CompactorConfig, providers: Record<string, ProviderConfig> = {}) {
     this.config = {
-      model: config.model || "qwen2.5:0.5b",
+      model: config.model || "google:gemma-3-4b-it",
+      reflectionModel: config.reflectionModel || "google:gemma-3-4b-it",
       triggerThreshold: config.triggerThreshold || 40,
       keepRecent: config.keepRecent || 10,
-      ollamaBase: config.ollamaBase || "http://localhost:11434",
+      providers: config.providers || {},
     };
-    this.ollamaManager = new OllamaManager(this.config.ollamaBase, this.config.model);
+    this.providers = providers;
+    
+    // Use full provider:model strings for Brain (Brain splits on ":")
+    this.brain = new Brain(this.config.model, this.providers);
+    this.reflectionBrain = new Brain(this.config.reflectionModel, this.providers);
   }
 
   shouldCompact(messageCount: number): boolean {
     return messageCount >= this.config.triggerThreshold;
+  }
+
+  async reflect(messages: Message[]): Promise<{ success: boolean; result?: ReflectionResult; error?: string }> {
+    const conversation = messages
+      .map(m => `[${m.role}]: ${m.content}`)
+      .join("\n\n");
+
+    const prompt = `Analyze this conversation and provide a structured reflection.
+
+CONVERSATION:
+${conversation}
+
+Generate a reflection with these fields (respond in strict JSON format):
+{
+  "user_goal": "What the user was trying to accomplish",
+  "completed": "What was successfully completed",
+  "next_steps": ["Step 1", "Step 2", "Step 3"],
+  "type": "bugfix|feature|research|question|other",
+  "title": "Short descriptive title",
+  "narrative": "Brief narrative of what happened"
+}
+
+Respond with ONLY the JSON object, no other text.`;
+
+    try {
+      const result = await this.reflectionBrain.thinkWithModel(
+        [],
+        prompt,
+        this.config.reflectionModel,
+        undefined,
+        0.2 // Low temperature for consistent structured output
+      );
+
+      const content = result.content.trim();
+      
+      // Extract JSON from response
+      let jsonStr = content;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+
+      const parsed = JSON.parse(jsonStr);
+      
+      return {
+        success: true,
+        result: {
+          type: parsed.type || "other",
+          title: parsed.title || "Conversation",
+          narrative: parsed.narrative || "",
+          nextSteps: Array.isArray(parsed.next_steps) ? parsed.next_steps : [],
+          completed: parsed.completed || "",
+          userGoal: parsed.user_goal || "",
+        },
+      };
+    } catch (err: any) {
+      console.error(`[Compactor] Reflection failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
   }
 
   async compact(sessionId: string, messages: Message[]): Promise<CompactionResult> {
@@ -220,18 +127,6 @@ export class Compactor {
         originalMessages: messages.length,
         compactedMessages: messages.length,
         summary: "Not enough messages to compact",
-      };
-    }
-
-    // Ensure Ollama is ready (auto-setup + wake on demand)
-    const { ready, error } = await this.ollamaManager.ensureReady();
-    if (!ready) {
-      return {
-        success: false,
-        originalMessages: messages.length,
-        compactedMessages: messages.length,
-        summary: `Compaction setup failed: ${error}`,
-        error,
       };
     }
 
@@ -286,32 +181,15 @@ ${conversation}
 
 SUMMARY:`;
 
-    return this.callOllama(prompt);
-  }
+    const result = await this.brain.thinkWithModel(
+      [],
+      prompt,
+      this.config.model,
+      undefined,
+      0.3 // Slightly higher temp for summarization creativity
+    );
 
-  private async callOllama(prompt: string): Promise<string> {
-    const modelName = this.config.model.replace(/^ollama:/, "");
-    
-    const response = await fetch(`${this.config.ollamaBase}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: modelName,
-        prompt,
-        stream: false,
-        options: {
-          temperature: 0.3,
-          num_predict: 512,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.response?.trim() || "Summary unavailable";
+    return result.content.trim() || "Summary unavailable";
   }
 
   private estimateTokens(messages: Message[]): number {
@@ -324,11 +202,21 @@ SUMMARY:`;
 }
 
 // CLI helper to test compaction
-export async function testCompaction(model: string = "qwen2.5:0.5b"): Promise<void> {
+export async function testCompaction(
+  model: string = "google:gemma-3-4b-it",
+  reflectionModel: string = "google:gemma-3-4b-it"
+): Promise<void> {
   const compactor = new Compactor({
     model,
+    reflectionModel,
     triggerThreshold: 5,
     keepRecent: 2,
+    providers: {
+      google: {
+        apiKeyEnv: "GOOGLE_API_KEY",
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      },
+    },
   });
 
   const testMessages: Message[] = [
@@ -343,12 +231,28 @@ export async function testCompaction(model: string = "qwen2.5:0.5b"): Promise<vo
   ];
 
   console.log(`\n  ▓▓▓  Compaction Test  ▓▓▓\n`);
-  console.log(`Model: ${model}`);
+  console.log(`Compaction Model: ${model}`);
+  console.log(`Reflection Model: ${reflectionModel}`);
   console.log(`Original: ${testMessages.length} messages\n`);
 
+  // Test reflection
+  console.log("--- REFLECTION TEST ---");
+  const reflection = await compactor.reflect(testMessages);
+  if (reflection.success && reflection.result) {
+    console.log(`Type: ${reflection.result.type}`);
+    console.log(`Title: ${reflection.result.title}`);
+    console.log(`User Goal: ${reflection.result.userGoal}`);
+    console.log(`Completed: ${reflection.result.completed}`);
+    console.log(`Next Steps: ${reflection.result.nextSteps.join(", ")}`);
+    console.log(`Narrative: ${reflection.result.narrative}`);
+  } else {
+    console.log(`Reflection failed: ${reflection.error}`);
+  }
+
+  // Test compaction
+  console.log("\n--- COMPACTION TEST ---");
   const result = await compactor.compact("test_session", testMessages);
 
-  console.log(`\n--- RESULT ---`);
   console.log(`Success: ${result.success}`);
   console.log(`Original: ${result.originalMessages} → Compacted: ${result.compactedMessages}`);
   if (result.tokensSaved) {

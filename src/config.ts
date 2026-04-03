@@ -101,9 +101,6 @@ base_url = "https://api-inference.huggingface.co/v1"
 [providers.azure]
 api_key_env = "AZURE_OPENAI_API_KEY"
 
-[providers.ollama]
-base_url = "http://localhost:11434/v1"
-
 [memory]
 type = "sqlite"
 path = "${veloHome}/data/velo.db"
@@ -111,11 +108,10 @@ max_context_messages = 50
 
 [compaction]
 enabled = false
-model = "ollama:qwen2.5:3b"
+model = "google:gemma-3-4b-it"
 reflection_model = "google:gemma-3-4b-it"
 trigger_threshold = 40
 keep_recent = 10
-ollama_base = "http://localhost:11434"
 
 [channels.webhook]
 enabled = true
@@ -142,7 +138,7 @@ export function parseToml(content: string): Config {
     channels: { webhook: { enabled: true, port: 3000 } },
     scheduler: { enabled: false, tasks: [] },
     skills: { directory: "./skills", auto_load: true },
-    compaction: { enabled: false, model: "ollama:qwen2.5:3b", reflectionModel: "google:gemma-3-4b-it", triggerThreshold: 40, keepRecent: 10 },
+    compaction: { enabled: false, model: "google:gemma-3-4b-it", reflectionModel: "google:gemma-3-4b-it", triggerThreshold: 40, keepRecent: 10 },
   };
 
   let currentSection = "";
