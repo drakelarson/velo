@@ -53,8 +53,8 @@ function walkDir(dir: string, fileList: string[] = []): string[] {
   for (const file of files) {
     const fullPath = path.join(dir, file);
     if (fs.statSync(fullPath).isDirectory()) {
-      // Skip subdirectories in skills/ root (but not for my-skills)
-      if (file === "system" || file === "web" || file === "dev") continue;
+      // Subdirectories of the skills root are all valid skill categories
+      // (previously skipped "system", "web", "dev" — now all load)
       walkDir(fullPath, fileList);
     } else if (file.endsWith(".ts") || file.endsWith(".js")) {
       fileList.push(fullPath);

@@ -4,7 +4,7 @@ export default {
   name: "x_fetch",
   description: "Fetch a tweet/X post by URL or ID and get its text content (no login required). Usage: x_fetch <url_or_id>",
   async execute(args: Record<string, unknown>): Promise<string> {
-    const input = String(args.action || args.args || "").trim();
+    const input = String(args.url || args.action || args.args || "").trim();
     if (!input) return "No tweet URL or ID provided";
     
     // Extract tweet ID from URL
