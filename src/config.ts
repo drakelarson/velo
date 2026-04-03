@@ -110,8 +110,9 @@ path = "${veloHome}/data/velo.db"
 max_context_messages = 50
 
 [compaction]
-enabled = true
+enabled = false
 model = "ollama:qwen2.5:3b"
+reflection_model = "google:gemma-3-4b-it"
 trigger_threshold = 40
 keep_recent = 10
 ollama_base = "http://localhost:11434"
@@ -141,7 +142,7 @@ export function parseToml(content: string): Config {
     channels: { webhook: { enabled: true, port: 3000 } },
     scheduler: { enabled: false, tasks: [] },
     skills: { directory: "./skills", auto_load: true },
-    compaction: { enabled: false, model: "ollama:qwen2.5:3b", triggerThreshold: 40, keepRecent: 10 },
+    compaction: { enabled: false, model: "ollama:qwen2.5:3b", reflectionModel: "google:gemma-3-4b-it", triggerThreshold: 40, keepRecent: 10 },
   };
 
   let currentSection = "";
@@ -221,10 +222,12 @@ export function parseToml(content: string): Config {
         const channel = currentSection.split(".")[1];
         config.channels[channel][key] = value;
       } else if (currentSection.includes(".")) {
-        // Nested section like memory or skills
+        // Nested section like memory, skills, or compaction
         const [parent, child] = currentSection.split(".");
         if (!config[parent]) config[parent] = {};
-        config[parent][key] = value;
+        // Convert snake_case to camelCase for nested config keys
+        const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+        config[parent][camelKey] = value;
       } else {
         if (!config[currentSection]) config[currentSection] = {};
         config[currentSection][key] = value;
