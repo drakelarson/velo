@@ -1,6 +1,42 @@
 #!/bin/bash
 # Velo Installer - Works on any Linux/macOS machine
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/drakelarson/velo/master/install.sh | bash
+#   curl -fsSL ... | bash uninstall   # uninstall
 
+# ── Uninstall ────────────────────────────────────────────────────────────────
+if [ "$1" = "--uninstall" ] || [ "$1" = "uninstall" ]; then
+  echo ""
+  echo "▓▓▓  Uninstalling Velo  ▓▓▓"
+  echo ""
+
+  pkill -f "velo" 2>/dev/null || true
+  echo "✓ Stopped running processes"
+
+  if [ -f /usr/local/bin/velo ]; then
+    sudo rm -f /usr/local/bin/velo && echo "✓ Removed /usr/local/bin/velo"
+  fi
+
+  if [ -d /usr/local/share/velo ]; then
+    sudo rm -rf /usr/local/share/velo && echo "✓ Removed /usr/local/share/velo"
+  fi
+
+  echo ""
+  read -p "Remove ~/.velo data directory? (y/N): " -n 1 -r
+  echo ""
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    rm -rf "$HOME/.velo" && echo "✓ Removed ~/.velo"
+  else
+    echo "Skipped ~/.velo (data kept at $HOME/.velo)"
+  fi
+
+  echo ""
+  echo "✓ Velo uninstalled. Goodbye!"
+  exit 0
+fi
+
+# ── Install ──────────────────────────────────────────────────────────────────
 set -e
 
 echo "╔══════════════════════════════════╗"
@@ -20,15 +56,9 @@ mkdir -p "$HOME/.velo/data"
 mkdir -p "$HOME/.velo/plugins"
 mkdir -p "$HOME/.velo/bridge"
 
-# Download binary (or build from source)
-if [ "$(uname -m)" = "x86_64" ]; then
-    echo "Downloading Velo binary..."
-else
-    echo "Building from source for $(uname -m)..."
-fi
-
 # Clone, install deps, build
 cd /tmp
+rm -rf velo-build
 git clone https://github.com/drakelarson/velo.git velo-build
 cd velo-build
 bun install
@@ -113,14 +143,13 @@ echo ""
 echo "  2. Run Velo:"
 echo "     velo chat \"Hello!\""
 echo ""
-echo "  3. Dashboard:"
-echo "     velo dashboard"
-echo "     → http://localhost:3333"
-echo ""
-echo "  4. Telegram bot:"
+echo "  3. Telegram bot:"
 echo "     velo telegram YOUR_BOT_TOKEN"
 echo ""
-echo "  5. Compaction settings:"
+echo "  4. Compaction settings:"
 echo "     velo compaction           # see current settings"
 echo "     velo compaction on/off   # enable/disable"
 echo "     velo compaction threshold 50  # compact after N messages"
+echo ""
+echo "  To uninstall:"
+echo "     curl -fsSL ... | bash uninstall"
