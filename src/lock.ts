@@ -1,7 +1,5 @@
 import * as fs from "fs";
-import * as path from "path";
 
-// Per-channel locks - each channel gets its own lock
 const LOCK_DIR = "/tmp/velo-locks";
 
 function ensureLockDir() {
@@ -10,79 +8,77 @@ function ensureLockDir() {
   }
 }
 
-// Acquire lock for a specific channel (telegram, webhook, discord, etc.)
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readPid(lockFile: string): number | null {
+  if (!fs.existsSync(lockFile)) return null;
+  const content = fs.readFileSync(lockFile, "utf-8").trim();
+  if (!content) return null;
+  const pid = parseInt(content, 10);
+  return Number.isInteger(pid) && pid > 0 ? pid : null;
+}
+
 export function acquireChannelLock(channel: string): boolean {
   ensureLockDir();
   const lockFile = `${LOCK_DIR}/${channel}.lock`;
-  
-  if (fs.existsSync(lockFile)) {
-    const pid = parseInt(fs.readFileSync(lockFile, "utf-8").trim());
-    
-    // Check if process is still running
-    try {
-      process.kill(pid, 0);
-      return false; // Process exists, can't acquire lock
-    } catch {
-      // Process dead, remove stale lock
-      fs.unlinkSync(lockFile);
-    }
+
+  const pid = readPid(lockFile);
+  if (pid !== null && isProcessAlive(pid)) {
+    return false; // Lock held by live process
   }
-  
-  // Write our PID to lock file
+
+  // Stale or empty lock — remove it
+  if (pid !== null) fs.unlinkSync(lockFile);
+
   fs.writeFileSync(lockFile, process.pid.toString());
   return true;
 }
 
 export function releaseChannelLock(channel: string): void {
   const lockFile = `${LOCK_DIR}/${channel}.lock`;
-  if (fs.existsSync(lockFile)) {
-    const pid = parseInt(fs.readFileSync(lockFile, "utf-8").trim());
-    if (pid === process.pid) {
-      fs.unlinkSync(lockFile);
-    }
+  const pid = readPid(lockFile);
+  if (pid === process.pid) {
+    fs.unlinkSync(lockFile);
   }
 }
 
 export function getChannelLockInfo(channel: string): { pid: number } | null {
   const lockFile = `${LOCK_DIR}/${channel}.lock`;
-  if (!fs.existsSync(lockFile)) return null;
-  
-  const pid = parseInt(fs.readFileSync(lockFile, "utf-8").trim());
-  try {
-    process.kill(pid, 0);
-    return { pid };
-  } catch {
-    // Stale lock, clean it up
-    fs.unlinkSync(lockFile);
-    return null;
-  }
+  const pid = readPid(lockFile);
+  if (pid === null) return null;
+  if (isProcessAlive(pid)) return { pid };
+  // Stale lock — clean it up
+  fs.unlinkSync(lockFile);
+  return null;
 }
 
-// Legacy support - acquire all locks (for "start" command that runs all channels)
 export function acquireLock(): boolean {
   ensureLockDir();
   const mainLock = `${LOCK_DIR}/main.lock`;
-  
-  if (fs.existsSync(mainLock)) {
-    const pid = parseInt(fs.readFileSync(mainLock, "utf-8").trim());
-    try {
-      process.kill(pid, 0);
-      return false;
-    } catch {
-      fs.unlinkSync(mainLock);
-    }
+
+  const pid = readPid(mainLock);
+  if (pid !== null && isProcessAlive(pid)) {
+    return false;
   }
-  
+
+  if (pid !== null) fs.unlinkSync(mainLock);
+
   fs.writeFileSync(mainLock, process.pid.toString());
   return true;
 }
 
 export function releaseLock(): void {
   const mainLock = `${LOCK_DIR}/main.lock`;
-  if (fs.existsSync(mainLock)) {
-    const pid = parseInt(fs.readFileSync(mainLock, "utf-8").trim());
-    if (pid === process.pid) {
-      fs.unlinkSync(mainLock);
-    }
+  const pid = readPid(mainLock);
+  if (pid === process.pid) {
+    fs.unlinkSync(mainLock);
   }
 }
