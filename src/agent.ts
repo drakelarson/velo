@@ -121,7 +121,7 @@ When you receive tool results:
 Example - WRONG: Tool returns "Found 5 results" → You say "The item has 12 cores and 5nm process"
 Example - CORRECT: Tool returns "Found 5 results" → You say "Search found 5 results. No detailed specs in the data."
 
-When you need to use a tool, the system will handle the tool call automatically. Respond naturally.`;
+When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", or "I'll check..." before calling a tool. Call it first, then report what you found. Never plan in text when a tool can act immediately.`;
   }
 
   private getTools(): Tool[] {
