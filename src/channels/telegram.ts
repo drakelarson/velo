@@ -482,7 +482,8 @@ function getVoiceName(voiceId: string): string {
 }
 
 // Helper function to send response (text or voice)
-async function sendResponse(ctx: Context, text: string, userId: string, agent: any) {
+async function sendResponse(ctx: Context, result: { text: string; attachments?: Array<{ type: string; path: string }> }, userId: string, agent: any) {
+  const { text, attachments = [] } = result;
   const userSettings = voiceModeUsers.get(userId) || { enabled: false, voice: DEFAULT_VOICE };
   
   if (userSettings.enabled && text.length > 0) {
@@ -518,5 +519,17 @@ async function sendResponse(ctx: Context, text: string, userId: string, agent: a
     }
   } else {
     await ctx.reply(text);
+  }
+
+  // Send any attachments (screenshots etc.)
+  for (const att of attachments) {
+    if (att.type === 'photo' && fs.existsSync(att.path)) {
+      try {
+        await ctx.replyWithPhoto({ source: att.path });
+        fs.unlinkSync(att.path);
+      } catch (err) {
+        console.error(`[Telegram] Failed to send photo ${att.path}:`, err.message);
+      }
+    }
   }
 }

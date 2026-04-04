@@ -9,6 +9,11 @@ interface CompactionCooldown {
   lastCompactionTime: number;
 }
 
+export interface ProcessResult {
+  text: string;
+  attachments: Array<{ type: string; path: string }>;
+}
+
 export class Agent {
   private brain: Brain;
   private memory: Memory;
@@ -17,6 +22,7 @@ export class Agent {
   private sessionId: string = "default";
   private toolCallCounter: number = 0;
   private compactor: Compactor | null = null;
+  private pendingAttachments: Array<{ type: string; path: string }> = [];
   // Track last compaction time PER SESSION
   private compactionCooldowns: Map<string, CompactionCooldown> = new Map();
   private readonly COMPACTION_COOLDOWN_MS = 10 * 60 * 1000;
@@ -147,6 +153,7 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
     this.memory.startSession(this.sessionId);
     this.memory.addUserPrompt(this.sessionId, input);
     this.memory.addMessage(this.sessionId, "user", input);
+    this.pendingAttachments = [];
 
     const messages = this.memory.getMessages(this.sessionId);
     const systemPrompt = this.buildSystemPrompt();
@@ -170,7 +177,10 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
             if (onProgress) onProgress({ toolName: tc.name, args: JSON.stringify(tc.arguments), result: r.result, status: r.result.startsWith("Error") ? "error" : "ok" });
             return r;
           }));
-          for (const r of results) toolResults.push(r);
+          for (const r of results) {
+            toolResults.push(r);
+            if (r.attachments) this.pendingAttachments.push(...r.attachments);
+          }
         } else {
           for (const tc of batch.calls) {
             const r = await this.executeSkill(tc);
@@ -196,7 +206,7 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
     }
 
     this.memory.addMessage(this.sessionId, "assistant", finalContent);
-    return finalContent;
+    return { text: finalContent, attachments: [...this.pendingAttachments] };
   }
 
   private async runPostCompactionCheck(sessionId: string): Promise<void> {
@@ -231,16 +241,27 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
   private async executeSkill(tc: ToolCall): Promise<{ toolCallId: string; name: string; result: string }> {
     const skill = this.skills.get(tc.name);
     if (!skill) {
-      return { toolCallId: tc.id, name: tc.name, result: `Unknown tool: ${tc.name}` };
+      return { toolCallId: tc.id, name: tc.name, result: `Unknown tool: ${tc.name}`, attachments: [] };
     }
     try {
-      const toolResult = await skill.execute(tc.arguments);
+      let toolResult = await skill.execute(tc.arguments);
       this.memory.addMessage(this.sessionId, "system", `[Tool: ${tc.name}] ${toolResult}`);
-      return { toolCallId: tc.id, name: tc.name, result: toolResult };
+      const attachments: Array<{ type: string; path: string }> = [];
+// Parse SCREENSHOT: prefix from browser skill results
+const screenshotMatch = toolResult.match(/^SCREENSHOT:(.+)$/m);
+if (screenshotMatch) {
+  const screenshotPath = screenshotMatch[1].trim();
+  if (screenshotPath && fs.existsSync(screenshotPath)) {
+    attachments.push({ type: 'photo', path: screenshotPath });
+  }
+  // Strip SCREENSHOT: prefix so the text doesn't mention the path
+  toolResult = toolResult.replace(/^SCREENSHOT:.+$/m, '').trim();
+}
+return { toolCallId: tc.id, name: tc.name, result: toolResult, attachments };
     } catch (err) {
       const errorMsg = `Error executing ${tc.name}: ${err}`;
       this.memory.addMessage(this.sessionId, "system", errorMsg);
-      return { toolCallId: tc.id, name: tc.name, result: errorMsg };
+      return { toolCallId: tc.id, name: tc.name, result: errorMsg, attachments: [] };
     }
   }
 
