@@ -149,7 +149,7 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
     }));
   }
 
-  async process(input: string, onProgress?: (step: ProcessStep) => void): Promise<string> {
+  async process(input: string, onProgress?: (step: ProcessStep) => void): Promise<{ text: string; attachments: string[] }> {
     this.memory.startSession(this.sessionId);
     this.memory.addUserPrompt(this.sessionId, input);
     this.memory.addMessage(this.sessionId, "user", input);

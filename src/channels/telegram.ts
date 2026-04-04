@@ -408,7 +408,7 @@ Just chat with me normally for anything else!`);
     await ctx.sendChatAction("typing");
   } catch {}
 };
-const response = await agent.process(message, onProgress);
+const { text: response, attachments } = await agent.process(message, onProgress);
       console.log(`[Telegram] Response generated (${response.length} chars)`);
       console.log(`[Telegram] Full response: ${response}`);
       
