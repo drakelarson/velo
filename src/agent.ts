@@ -143,7 +143,7 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
     }));
   }
 
-  async process(input: string): Promise<string> {
+  async process(input: string, onProgress?: (step: ProcessStep) => void): Promise<string> {
     this.memory.startSession(this.sessionId);
     this.memory.addUserPrompt(this.sessionId, input);
     this.memory.addMessage(this.sessionId, "user", input);
@@ -152,10 +152,11 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
     const systemPrompt = this.buildSystemPrompt();
     const tools = this.getTools();
 
+    const steps: ProcessStep[] = [];
     let result = await this.brain.think(messages, systemPrompt, tools.length > 0 ? tools : undefined);
 
     let iterations = 0;
-    const maxIterations = 3;
+    const maxIterations = 5;
     const toolResults: Array<{ toolCallId: string; name: string; result: string }> = [];
 
     while (result.toolCalls.length > 0 && iterations < maxIterations) {
@@ -164,13 +165,17 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
       const batches = this.buildExecutionBatches(result.toolCalls);
       for (const batch of batches) {
         if (batch.type === "parallel") {
-          // Run all tools in parallel
-          const results = await Promise.all(batch.calls.map(tc => this.executeSkill(tc)));
+          const results = await Promise.all(batch.calls.map(async tc => {
+            const r = await this.executeSkill(tc);
+            if (onProgress) onProgress({ toolName: tc.name, args: JSON.stringify(tc.arguments), result: r.result, status: r.result.startsWith("Error") ? "error" : "ok" });
+            return r;
+          }));
           for (const r of results) toolResults.push(r);
         } else {
-          // Sequential: tools must run in order
           for (const tc of batch.calls) {
-            toolResults.push(await this.executeSkill(tc));
+            const r = await this.executeSkill(tc);
+            if (onProgress) onProgress({ toolName: tc.name, args: JSON.stringify(tc.arguments), result: r.result, status: r.result.startsWith("Error") ? "error" : "ok" });
+            toolResults.push(r);
           }
         }
       }

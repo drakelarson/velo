@@ -88,7 +88,17 @@ export function createTelegramChannel(agent: any, token: string) {
       if (transcribedText && transcribedText.length > 0) {
         recovery.save(sessionId, `[Voice] ${transcribedText}`);
         
-        const response = await agent.process(transcribedText);
+        const onProgress = async (step: any) => {
+  const icon = step.status === "ok" ? "✅" : "❌";
+  const shortResult = step.result.length > 300
+    ? step.result.slice(0, 300) + "..."
+    : step.result;
+  try {
+    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    await ctx.sendChatAction("typing");
+  } catch {}
+};
+const response = await agent.process(transcribedText, onProgress);
         await sendResponse(ctx, response, userId, agent);
       }
 
@@ -143,7 +153,17 @@ export function createTelegramChannel(agent: any, token: string) {
       const transcribedText = transcription.replace(/^[📝\s]*TRANSCRIPTION:?\s*/i, "").trim();
       if (transcribedText && transcribedText.length > 0) {
         recovery.save(sessionId, `[Audio] ${transcribedText}`);
-        const response = await agent.process(transcribedText);
+        const onProgress = async (step: any) => {
+  const icon = step.status === "ok" ? "✅" : "❌";
+  const shortResult = step.result.length > 300
+    ? step.result.slice(0, 300) + "..."
+    : step.result;
+  try {
+    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    await ctx.sendChatAction("typing");
+  } catch {}
+};
+const response = await agent.process(transcribedText, onProgress);
         await sendResponse(ctx, response, userId, agent);
       }
 
@@ -191,7 +211,17 @@ export function createTelegramChannel(agent: any, token: string) {
       recovery.save(sessionId, userMessage);
       await ctx.sendChatAction("typing");
 
-      const response = await agent.process(userMessage);
+      const onProgress = async (step: any) => {
+  const icon = step.status === "ok" ? "✅" : "❌";
+  const shortResult = step.result.length > 300
+    ? step.result.slice(0, 300) + "..."
+    : step.result;
+  try {
+    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    await ctx.sendChatAction("typing");
+  } catch {}
+};
+const response = await agent.process(userMessage, onProgress);
       recovery.markClean(sessionId);
       await sendResponse(ctx, response, userId, agent);
 
@@ -368,7 +398,17 @@ Just chat with me normally for anything else!`);
 
     try {
       console.log(`[Telegram] Processing: "${message.slice(0, 50)}..."`);
-      const response = await agent.process(message);
+      const onProgress = async (step: any) => {
+  const icon = step.status === "ok" ? "✅" : "❌";
+  const shortResult = step.result.length > 300
+    ? step.result.slice(0, 300) + "..."
+    : step.result;
+  try {
+    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    await ctx.sendChatAction("typing");
+  } catch {}
+};
+const response = await agent.process(message, onProgress);
       console.log(`[Telegram] Response generated (${response.length} chars)`);
       console.log(`[Telegram] Full response: ${response}`);
       
