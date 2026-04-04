@@ -483,7 +483,7 @@ function getVoiceName(voiceId: string): string {
 
 // Helper function to send response (text or voice)
 async function sendResponse(ctx: Context, result: { text: string; attachments?: Array<{ type: string; path: string }> }, userId: string, agent: any) {
-  const { text, attachments = [] } = result;
+  const { text: text = "", attachments = [] } = result;
   const userSettings = voiceModeUsers.get(userId) || { enabled: false, voice: DEFAULT_VOICE };
   
   if (userSettings.enabled && text.length > 0) {

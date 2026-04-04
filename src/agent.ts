@@ -196,7 +196,7 @@ When you need to use a tool — USE IT. Do not say "I'll try...", "Let me...", o
       );
     }
 
-    let finalContent = this.brain.stripToolCalls(result.content);
+    let finalContent = this.brain.stripToolCalls(result.content ?? "");
 
     // ── POST-PROCESS: Compaction (after message count is at peak) ──
     await this.runPostCompactionCheck(this.sessionId);
