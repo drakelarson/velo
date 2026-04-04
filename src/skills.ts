@@ -75,14 +75,12 @@ export async function loadSkills(directory: string): Promise<Skill[]> {
 
     for (const skillPath of files) {
       try {
-        console.error(`[Skills] Loading: ${skillPath}`);
         
         if (skillPath.endsWith(".md")) {
           // Load .md skills as prompt-based LLM instructions
           const content = fs.readFileSync(skillPath, "utf-8");
           const skill = parseMarkdownSkill(content, skillPath);
           if (skill) {
-            console.error(`[Skills] Loaded markdown skill: ${skill.name}`);
             skills.push(skill);
           }
           continue;
@@ -91,14 +89,12 @@ export async function loadSkills(directory: string): Promise<Skill[]> {
         const module = await import(skillPath);
         
         if (module.default) {
-          console.error(`[Skills] Loaded skill: ${module.default.name}`);
           skills.push(module.default as Skill);
         }
       } catch (err) {
         // Only log if it's not a type import issue
         const msg = String(err);
         if (!msg.includes("types.ts")) {
-          console.error(`[Skills] Failed to load ${path.basename(skillPath)}: ${msg.slice(0, 100)}`);
         }
       }
     }
@@ -115,13 +111,12 @@ export async function loadSkills(directory: string): Promise<Skill[]> {
       if (!fs.statSync(skillPath).isFile()) continue;
       
       try {
-        console.error(`[Skills] Loading user skill: ${skillPath}`);
+        console.error(`[Skills] Loading:`); // verbose Loading user skill: ${skillPath}`);
         
         if (file.endsWith(".md")) {
           const content = fs.readFileSync(skillPath, "utf-8");
           const skill = parseMarkdownSkill(content, skillPath);
           if (skill) {
-            console.error(`[Skills] Loaded user markdown skill: ${skill.name}`);
             skills.push(skill);
           }
           continue;
@@ -130,12 +125,10 @@ export async function loadSkills(directory: string): Promise<Skill[]> {
         if (file.endsWith(".ts") || file.endsWith(".js")) {
           const module = await import(skillPath);
           if (module.default) {
-            console.error(`[Skills] Loaded user skill: ${module.default.name}`);
             skills.push(module.default as Skill);
           }
         }
       } catch (err) {
-        console.error(`[Skills] Failed to load user skill ${file}: ${err}`);
       }
     }
   }
