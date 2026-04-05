@@ -94,7 +94,7 @@ export function createTelegramChannel(agent: any, token: string) {
     ? step.result.slice(0, 300) + "..."
     : step.result;
   try {
-    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    if (step.result?.length) await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`).catch(() => {});
     await ctx.sendChatAction("typing");
   } catch {}
 };
@@ -159,7 +159,7 @@ const response = await agent.process(transcribedText, onProgress);
     ? step.result.slice(0, 300) + "..."
     : step.result;
   try {
-    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    if (step.result?.length) await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`).catch(() => {});
     await ctx.sendChatAction("typing");
   } catch {}
 };
@@ -217,13 +217,18 @@ const response = await agent.process(transcribedText, onProgress);
     ? step.result.slice(0, 300) + "..."
     : step.result;
   try {
-    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    if (step.result?.length) await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`).catch(() => {});
     await ctx.sendChatAction("typing");
   } catch {}
 };
-const response = await agent.process(userMessage, onProgress);
+const result = await agent.process(userMessage, onProgress);
+      const { text = "", attachments = [] } = result;
       recovery.markClean(sessionId);
-      await sendResponse(ctx, response, userId, agent);
+      if ((text?.trim() || '').length > 0 || (attachments?.length || 0) > 0) {
+        await sendResponse(ctx, { text, attachments }, userId, agent);
+      } else {
+        await ctx.reply("(No response generated)").catch(() => {});
+      }
 
     } catch (err: any) {
       console.error("[Telegram] Photo error:", err?.message);
@@ -404,16 +409,21 @@ Just chat with me normally for anything else!`);
     ? step.result.slice(0, 300) + "..."
     : step.result;
   try {
-    await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`);
+    if (step.result?.length) await ctx.reply(`${icon} ${step.toolName}\n\n${shortResult}`).catch(() => {});
     await ctx.sendChatAction("typing");
   } catch {}
 };
-const { text: response, attachments } = await agent.process(message, onProgress);
+const result = await agent.process(message, onProgress);
       console.log(`[Telegram] Response generated (${response.length} chars)`);
       console.log(`[Telegram] Full response: ${response}`);
       
       recovery.markClean(sessionId);
-      await sendResponse(ctx, response, userId, agent);
+      const { text = "", attachments = [] } = result;
+      if ((text?.trim() || '').length > 0 || (attachments?.length || 0) > 0) {
+        await sendResponse(ctx, { text, attachments }, userId, agent);
+      } else {
+        await ctx.reply("(No response generated)").catch(() => {});
+      }
       
     } catch (err: any) {
       console.error("[Telegram] Error:", err?.message || err);
